@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Aegis TelcoAI — LangGraph Autonomous Customer Agent</title>
+  <meta name="description" content="Production-grade AI Telecom Support Agent built with FastAPI, LangGraph, RAG, and Telecom Operational APIs.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/css/styles.css">
+</head>
+<body class="dark-theme">
+  <!-- Top Navigation Header -->
+  <header class="app-header">
+    <div class="header-left">
+      <div class="logo-mark">
+        <div class="logo-pulse"></div>
+        <span class="logo-icon">⚡</span>
+      </div>
+      <div>
+        <h1 class="logo-title">Aegis <span>TelcoAI</span></h1>
+        <p class="logo-subtitle">FastAPI & LangGraph Autonomous Customer Support Agent</p>
+      </div>
+    </div>
+
+    <!-- Active Architecture Workflow Summary -->
+    <div class="header-center">
+      <div class="pipeline-pill">
+        <span class="pill-dot"></span>
+        <span class="pill-text">Architecture: <strong>FastAPI → LangGraph → Context Trio → Auto Resolve / Ticket</strong></span>
+      </div>
+    </div>
+
+    <div class="header-right">
+      <button id="viewTicketsBtn" class="btn btn-secondary">
+        <span class="btn-icon">📋</span> Support Tickets <span id="ticketCountBadge" class="badge">1</span>
+      </button>
+      <button id="viewKbBtn" class="btn btn-secondary">
+        <span class="btn-icon">📚</span> Knowledge Base
+      </button>
+      <button id="settingsBtn" class="btn btn-secondary">
+        <span class="btn-icon">⚙️</span> Config
+      </button>
+      <button id="resetDemoBtn" class="btn btn-outline-danger" title="Reset Demo Customers & Tickets">
+        <span class="btn-icon">🔄</span> Reset Demo
+      </button>
+    </div>
+  </header>
+
+  <!-- Main 3-Column Layout -->
+  <main class="main-container">
+    <!-- LEFT COLUMN: Customer Context & Telecom Systems -->
+    <aside class="sidebar-panel left-panel">
+      <div class="panel-section-header">
+        <h2>Customer Context</h2>
+        <span class="status-indicator live">CRM LIVE</span>
+      </div>
+
+      <!-- Customer Selector -->
+      <div class="card customer-select-card">
+        <label for="customerSelect" class="form-label">Select Demo Customer Profile:</label>
+        <select id="customerSelect" class="form-select">
+          <option value="CUST-102">Bob Smith — Fiber Home (LOS Red Light)</option>
+          <option value="CUST-103">Carlos Rodriguez — Business Mobile (Roaming Dispute)</option>
+          <option value="CUST-104">Elena Rostova — Prepaid (eSIM Activation)</option>
+          <option value="CUST-101">Alice Chen — 5G Mobile (Speed Throttle)</option>
+          <option value="CUST-105">David Miller — Enterprise Leased Line (BGP Flap)</option>
+        </select>
+      </div>
+
+      <!-- Active Customer Card -->
+      <div id="customerProfileCard" class="card profile-card">
+        <div class="profile-header">
+          <div class="avatar" id="custAvatar">BS</div>
+          <div class="profile-meta">
+            <h3 id="custName">Bob Smith</h3>
+            <span id="custTier" class="tier-badge silver">Silver</span>
+            <span id="custPhone" class="mono-text">+1 (555) 345-6789</span>
+          </div>
+        </div>
+
+        <div class="profile-details">
+          <div class="detail-row">
+            <span class="detail-label">Account No:</span>
+            <span id="custAccount" class="detail-val mono-text">ACC-44912</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Plan:</span>
+            <span id="custPlan" class="detail-val highlight">Fiber Gigabit (1000 Mbps)</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Tenure:</span>
+            <span id="custTenure" class="detail-val">14 months</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Balance:</span>
+            <span id="custBalance" class="detail-val mono-text">$79.99</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Live Telecom Systems Telemetry HUD -->
+      <div class="panel-section-header" style="margin-top: 1.25rem;">
+        <h2>Telecom APIs Telemetry</h2>
+        <span class="status-indicator ok" id="telecomHudStatus">SYNCED</span>
+      </div>
+
+      <div class="telemetry-hud card">
+        <div class="hud-item">
+          <div class="hud-label">
+            <span class="hud-icon">📡</span> Network Status
+          </div>
+          <div id="hudNetStatus" class="hud-value warn">Checking...</div>
+        </div>
+        <div class="hud-item">
+          <div class="hud-label">
+            <span class="hud-icon">💡</span> Optical / Radio RX
+          </div>
+          <div id="hudSignal" class="hud-value mono-text">-29.4 dBm (Degraded)</div>
+        </div>
+        <div class="hud-item">
+          <div class="hud-label">
+            <span class="hud-icon">💳</span> Billing Engine
+          </div>
+          <div id="hudBilling" class="hud-value">Current / In Good Standing</div>
+        </div>
+        <div class="hud-item">
+          <div class="hud-label">
+            <span class="hud-icon">📱</span> Equipment State
+          </div>
+          <div id="hudDevice" class="hud-value mono-text">ONT Nokia (LOS Alarm)</div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- CENTER COLUMN: Interactive Customer Chat Interface -->
+    <section class="chat-panel">
+      <div class="chat-header">
+        <div class="chat-agent-info">
+          <div class="agent-avatar">AI</div>
+          <div>
+            <h3>Aegis Telecom Concierge</h3>
+            <p class="agent-status"><span class="status-dot"></span> LangGraph Multi-Tier Agent Ready</p>
+          </div>
+        </div>
+        <div class="chat-actions">
+          <button id="clearChatBtn" class="btn btn-sm btn-ghost" title="Clear Chat History">Clear Chat</button>
+        </div>
+      </div>
+
+      <!-- Quick Issue Presets -->
+      <div class="preset-chips-container">
+        <span class="preset-label">Test Scenarios:</span>
+        <div class="preset-chips">
+          <button class="chip" data-scenario="fiber">🔴 Red Optical Light on Fiber Box</button>
+          <button class="chip" data-scenario="roaming">💸 Disputing $65 Roaming Charge</button>
+          <button class="chip" data-scenario="esim">📲 Need eSIM QR Code for New Phone</button>
+          <button class="chip" data-scenario="speed">📶 5G Cellular Speed is Crawling</button>
+          <button class="chip" data-scenario="enterprise">⚠️ Enterprise BGP Flapping & SLA</button>
+        </div>
+      </div>
+
+      <!-- Chat Messages Container -->
+      <div id="chatMessages" class="chat-messages">
+        <!-- Welcoming Initial Message -->
+        <div class="message assistant">
+          <div class="message-avatar">AI</div>
+          <div class="message-content">
+            <p>Welcome to Telecom Support! I am <strong>Aegis</strong>, your autonomous telecom assistance agent.</p>
+            <p>I have direct integration with your account profile, line diagnostics, billing records, and knowledge base. How can I assist you today?</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Chat Input Area -->
+      <form id="chatForm" class="chat-input-form">
+        <div class="input-wrapper">
+          <input 
+            type="text" 
+            id="chatInput" 
+            placeholder="Type customer message or select a test scenario above..." 
+            autocomplete="off" 
+            required
+          />
+          <button type="submit" id="sendBtn" class="btn btn-primary send-btn">
+            <span>Send</span>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/>
+            </svg>
+          </button>
+        </div>
+      </form>
+    </section>
+
+    <!-- RIGHT COLUMN: Agent Thought & Architecture Visualizer -->
+    <aside class="sidebar-panel right-panel">
+      <div class="panel-section-header">
+        <h2>Architecture & Reasoning</h2>
+        <span class="status-indicator idle" id="graphStateBadge">STANDBY</span>
+      </div>
+
+      <!-- Visual Architecture Flow Diagram -->
+      <div class="card flow-diagram-card">
+        <div class="flow-diagram-title">LangGraph Agent Pipeline Execution</div>
+        <div class="pipeline-flow" id="pipelineFlow">
+          <div class="node-step" id="step-ingress">
+            <div class="node-circle">1</div>
+            <div class="node-info">
+              <span class="node-title">Issue Understanding</span>
+              <span class="node-desc">Classification & Intent</span>
+            </div>
+            <div class="node-status-icon">○</div>
+          </div>
+          <div class="flow-line"></div>
+
+          <div class="node-step" id="step-context">
+            <div class="node-circle">2</div>
+            <div class="node-info">
+              <span class="node-title">Context Trio Synthesis</span>
+              <span class="node-desc">Customer DB + RAG + APIs</span>
+            </div>
+            <div class="node-status-icon">○</div>
+          </div>
+          <div class="flow-line"></div>
+
+          <div class="node-step" id="step-reasoning">
+            <div class="node-circle">3</div>
+            <div class="node-info">
+              <span class="node-title">LLM Reasoning Engine</span>
+              <span class="node-desc">Telemetry & SOP Analysis</span>
+            </div>
+            <div class="node-status-icon">○</div>
+          </div>
+          <div class="flow-line"></div>
+
+          <div class="node-step" id="step-decision">
+            <div class="node-circle">4</div>
+            <div class="node-info">
+              <span class="node-title">Action / Decision Gate</span>
+              <span class="node-desc">Auto Resolve vs Human Escalate</span>
+            </div>
+            <div class="node-status-icon">○</div>
+          </div>
+          <div class="flow-line"></div>
+
+          <div class="node-step" id="step-egress">
+            <div class="node-circle">5</div>
+            <div class="node-info">
+              <span class="node-title">Response / Ticket Delivery</span>
+              <span class="node-desc">Remediation or Handover</span>
+            </div>
+            <div class="node-status-icon">○</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tabbed Inspector for Details -->
+      <div class="inspector-card card">
+        <div class="inspector-tabs">
+          <button class="tab-btn active" data-tab="tab-reasoning">🧠 Reasoning</button>
+          <button class="tab-btn" data-tab="tab-intent">🎯 Intent</button>
+          <button class="tab-btn" data-tab="tab-rag">📚 RAG KB</button>
+          <button class="tab-btn" data-tab="tab-telecom">⚡ APIs</button>
+          <button class="tab-btn" data-tab="tab-action">⚡ Action</button>
+        </div>
+
+        <div class="inspector-body">
+          <!-- Tab 1: LLM Reasoning -->
+          <div id="tab-reasoning" class="tab-pane active">
+            <div class="pane-header">
+              <span class="pane-title">LLM Strategic Analysis</span>
+              <span id="decisionBadge" class="badge badge-purple">Pending Run</span>
+            </div>
+            <div id="reasoningContent" class="reasoning-text">
+              Run a scenario or send a customer message to inspect real-time agent reasoning steps.
+            </div>
+          </div>
+
+          <!-- Tab 2: Intent & Classification -->
+          <div id="tab-intent" class="tab-pane">
+            <div class="meta-grid" id="intentGrid">
+              <div class="meta-item">
+                <span class="meta-label">Category:</span>
+                <span id="intentCategory" class="meta-value">—</span>
+              </div>
+              <div class="meta-item">
+                <span class="meta-label">Intent:</span>
+                <span id="intentName" class="meta-value">—</span>
+              </div>
+              <div class="meta-item">
+                <span class="meta-label">Urgency:</span>
+                <span id="intentUrgency" class="meta-value">—</span>
+              </div>
+              <div class="meta-item">
+                <span class="meta-label">Sentiment:</span>
+                <span id="intentSentiment" class="meta-value">—</span>
+              </div>
+            </div>
+            <div class="churn-meter-container">
+              <div class="churn-label">
+                <span>Customer Churn Risk:</span>
+                <span id="churnRiskValue">0 / 10</span>
+              </div>
+              <div class="churn-bar-bg">
+                <div id="churnBarFill" class="churn-bar-fill" style="width: 0%;"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Tab 3: RAG Sources -->
+          <div id="tab-rag" class="tab-pane">
+            <div id="ragDocsList" class="rag-docs-list">
+              <p class="placeholder-text">No RAG query executed yet.</p>
+            </div>
+          </div>
+
+          <!-- Tab 4: Telecom APIs -->
+          <div id="tab-telecom" class="tab-pane">
+            <pre id="telecomJsonView" class="code-preview">{\n  "status": "Awaiting execution"\n}</pre>
+          </div>
+
+          <!-- Tab 5: Action & Ticket Result -->
+          <div id="tab-action" class="tab-pane">
+            <div id="actionResultView" class="action-result-box">
+              <p class="placeholder-text">No automated action or escalation ticket generated yet.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </aside>
+  </main>
+
+  <!-- MODALS -->
+
+  <!-- Modal 1: Tickets Queue -->
+  <dialog id="ticketsModal" class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>📋 Human Support Escalation Tickets Queue</h3>
+        <button class="modal-close-btn" data-close="ticketsModal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p class="modal-desc">Tickets dispatched by the LangGraph agent for human specialist intervention (Tier-2 Network Engineering, Billing Disputes, NOC).</p>
+        <div id="ticketsListContainer" class="tickets-table-container">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Modal 2: Knowledge Base -->
+  <dialog id="kbModal" class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>📚 Telecom RAG Knowledge Base</h3>
+        <button class="modal-close-btn" data-close="kbModal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div id="kbListContainer" class="kb-articles-grid">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Modal 3: Settings -->
+  <dialog id="settingsModal" class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>⚙️ Agent Configuration & LLM Provider</h3>
+        <button class="modal-close-btn" data-close="settingsModal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="settings-form">
+          <div class="form-group">
+            <label class="form-label">LLM Provider Mode:</label>
+            <select id="settingProviderSelect" class="form-select">
+              <option value="auto">Auto (Live LLM if key set, else High-Fidelity Telecom Engine)</option>
+              <option value="gemini">Google Gemini (langchain-google-genai)</option>
+              <option value="openai">OpenAI (langchain-openai)</option>
+              <option value="mock">Built-in Telecom Reasoning Engine (Offline / Deterministic)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Custom API Key (Optional):</label>
+            <input type="password" id="settingApiKey" class="form-input" placeholder="Enter Gemini or OpenAI API Key">
+            <small class="form-help">Keys entered here stay locally in your session and enable live model inference.</small>
+          </div>
+          <button id="saveSettingsBtn" class="btn btn-primary" style="margin-top: 1rem; width: 100%;">Apply Configuration</button>
+        </div>
+      </div>
+    </div>
+  </dialog>
+
+  <script src="/static/js/app.js"></script>
+</body>
+</html>
