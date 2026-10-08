@@ -1,0 +1,22 @@
+{
+  "name": "ai-customer-support-workshop",
+  "version": "1.0.0",
+  "private": true,
+  "description": "AI Customer Support Agent with Admin Panel",
+  "workspaces": [
+    "packages/api",
+    "packages/web"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev:api\" \"npm run dev:web\"",
+    "dev:api": "npm run dev -w packages/api",
+    "dev:web": "npm run dev -w packages/web",
+    "build": "npm run build -w packages/api && npm run build -w packages/web",
+    "test": "npm run test -w packages/api",
+    "seed": "npm run seed -w packages/api"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2",
+    "typescript": "^5.7.3"
+  }
+}
