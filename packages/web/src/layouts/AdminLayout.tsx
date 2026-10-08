@@ -4,17 +4,20 @@ import { useAuth } from '../context/AuthContext.js';
 import {
   LayoutDashboard,
   Users,
-  Box,
-  ShoppingCart,
-  MessageSquareText,
+  Wifi,
+  CreditCard,
+  Receipt,
+  Smartphone,
+  AlertTriangle,
   Ticket,
+  MessageSquareText,
   BookOpen,
   HelpCircle,
   UserCheck,
   Cpu,
   History,
   LogOut,
-  ShieldCheck,
+  Radio,
 } from 'lucide-react';
 
 export const AdminLayout: React.FC = () => {
@@ -34,11 +37,11 @@ export const AdminLayout: React.FC = () => {
       <aside className="sidebar">
         <div className="sidebar-header">
           <div className="brand-badge" style={{ background: 'linear-gradient(135deg, #a855f7, #6366f1)' }}>
-            <ShieldCheck size={20} />
+            <Radio size={20} />
           </div>
           <div>
-            <div className="brand-title">Control Center</div>
-            <div className="brand-sub">Admin & Operations</div>
+            <div className="brand-title">Telecom Operations</div>
+            <div className="brand-sub">Mission Control & AI</div>
           </div>
         </div>
 
@@ -57,31 +60,47 @@ export const AdminLayout: React.FC = () => {
             className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
           >
             <Users size={18} />
-            <span>Customers</span>
+            <span>Subscribers</span>
           </NavLink>
 
           <NavLink
-            to="/admin/products"
+            to="/admin/plans"
             className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
           >
-            <Box size={18} />
-            <span>Products</span>
+            <Wifi size={18} />
+            <span>Telecom Plans</span>
           </NavLink>
 
           <NavLink
-            to="/admin/orders"
+            to="/admin/recharges"
             className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
           >
-            <ShoppingCart size={18} />
-            <span>Orders</span>
+            <CreditCard size={18} />
+            <span>Recharges</span>
           </NavLink>
 
           <NavLink
-            to="/admin/conversations"
+            to="/admin/bills"
             className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
           >
-            <MessageSquareText size={18} />
-            <span>Conversations</span>
+            <Receipt size={18} />
+            <span>Bills & Revenue</span>
+          </NavLink>
+
+          <NavLink
+            to="/admin/sims"
+            className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
+          >
+            <Smartphone size={18} />
+            <span>SIM & eSIM</span>
+          </NavLink>
+
+          <NavLink
+            to="/admin/outages"
+            className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
+          >
+            <AlertTriangle size={18} />
+            <span>Network Outages</span>
           </NavLink>
 
           <NavLink
@@ -90,6 +109,14 @@ export const AdminLayout: React.FC = () => {
           >
             <Ticket size={18} />
             <span>Support Tickets</span>
+          </NavLink>
+
+          <NavLink
+            to="/admin/conversations"
+            className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
+          >
+            <MessageSquareText size={18} />
+            <span>AI Conversations</span>
           </NavLink>
 
           <NavLink
@@ -105,7 +132,7 @@ export const AdminLayout: React.FC = () => {
             className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
           >
             <HelpCircle size={18} />
-            <span>FAQs</span>
+            <span>Telecom FAQs</span>
           </NavLink>
 
           {isAdmin && (

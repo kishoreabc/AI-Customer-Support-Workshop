@@ -2,7 +2,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { logger } from '../utils/logger.js';
 
 export function initializeSchema(db: DatabaseSync): void {
-  logger.info('Initializing SQLite database schema...');
+  logger.info('Initializing Telecom SQLite database schema...');
 
   db.exec(`
     -- Users table for unified authentication credentials
@@ -15,7 +15,7 @@ export function initializeSchema(db: DatabaseSync): void {
       created_at TEXT NOT NULL
     );
 
-    -- Customer profiles with full contact, address and status info
+    -- Customer/Subscriber profiles with mobile numbers and telecom details
     CREATE TABLE IF NOT EXISTS customer_profiles (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       customer_id TEXT UNIQUE NOT NULL,
@@ -24,13 +24,17 @@ export function initializeSchema(db: DatabaseSync): void {
       last_name TEXT NOT NULL,
       email TEXT NOT NULL,
       phone TEXT,
+      phone_number TEXT,
+      alternate_number TEXT,
       date_of_birth TEXT,
       address TEXT,
       city TEXT,
       state TEXT,
-      country TEXT,
+      country TEXT DEFAULT 'India',
       postal_code TEXT,
+      pincode TEXT,
       customer_status TEXT NOT NULL DEFAULT 'ACTIVE' CHECK(customer_status IN ('ACTIVE', 'INACTIVE', 'SUSPENDED')),
+      customer_since TEXT,
       account_created_at TEXT NOT NULL,
       last_login_at TEXT,
       notes TEXT,
@@ -48,7 +52,7 @@ export function initializeSchema(db: DatabaseSync): void {
       created_at TEXT NOT NULL
     );
 
-    -- Support agents for escalation and assignments
+    -- Support agents for telecom escalation and ticket assignments
     CREATE TABLE IF NOT EXISTS support_agents (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       agent_id TEXT UNIQUE NOT NULL,
@@ -57,57 +61,145 @@ export function initializeSchema(db: DatabaseSync): void {
       email TEXT NOT NULL,
       role TEXT NOT NULL DEFAULT 'SUPPORT_AGENT',
       status TEXT NOT NULL DEFAULT 'ACTIVE' CHECK(status IN ('ACTIVE', 'INACTIVE', 'SUSPENDED')),
-      department TEXT NOT NULL DEFAULT 'General Support',
+      department TEXT NOT NULL DEFAULT 'Telecom Network & Billing Desk',
       created_at TEXT NOT NULL,
       last_active_at TEXT
     );
 
-    -- Product catalog with warranty, return policy, and specifications
-    CREATE TABLE IF NOT EXISTS products (
+    -- Telecom Plans Catalog (Prepaid, Postpaid, 5G, Unlimited, Roaming)
+    CREATE TABLE IF NOT EXISTS telecom_plans (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      product_id TEXT UNIQUE NOT NULL,
+      plan_id TEXT UNIQUE NOT NULL,
       name TEXT NOT NULL,
-      sku TEXT UNIQUE NOT NULL,
       description TEXT NOT NULL,
-      category TEXT NOT NULL,
       price REAL NOT NULL,
-      currency TEXT NOT NULL DEFAULT 'USD',
-      stock_quantity INTEGER NOT NULL DEFAULT 0,
-      availability_status TEXT NOT NULL DEFAULT 'IN_STOCK' CHECK(availability_status IN ('IN_STOCK', 'OUT_OF_STOCK', 'BACKORDER', 'DISCONTINUED')),
-      specifications TEXT,
-      warranty_information TEXT NOT NULL,
-      return_policy TEXT NOT NULL,
+      currency TEXT NOT NULL DEFAULT 'INR',
+      validity_days INTEGER NOT NULL,
+      data_allowance TEXT NOT NULL,
+      voice_allowance TEXT NOT NULL DEFAULT 'Unlimited Calls',
+      sms_allowance TEXT NOT NULL DEFAULT '100 SMS/day',
+      network_type TEXT NOT NULL DEFAULT '5G' CHECK(network_type IN ('4G', '5G', 'FIBER')),
+      is_5g INTEGER NOT NULL DEFAULT 1,
+      roaming_available INTEGER NOT NULL DEFAULT 1,
+      category TEXT NOT NULL DEFAULT 'UNLIMITED',
+      status TEXT NOT NULL DEFAULT 'ACTIVE' CHECK(status IN ('ACTIVE', 'INACTIVE', 'ARCHIVED')),
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
 
-    -- Customer orders
-    CREATE TABLE IF NOT EXISTS orders (
+    -- Active Subscriptions
+    CREATE TABLE IF NOT EXISTS subscriptions (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      order_id TEXT UNIQUE NOT NULL,
+      subscription_id TEXT UNIQUE NOT NULL,
       customer_id TEXT NOT NULL REFERENCES customer_profiles(customer_id) ON DELETE CASCADE,
-      order_date TEXT NOT NULL,
-      total_amount REAL NOT NULL,
-      currency TEXT NOT NULL DEFAULT 'USD',
-      payment_status TEXT NOT NULL DEFAULT 'PAID' CHECK(payment_status IN ('PENDING', 'PAID', 'FAILED', 'REFUNDED', 'PARTIALLY_REFUNDED')),
-      order_status TEXT NOT NULL DEFAULT 'CONFIRMED' CHECK(order_status IN ('PENDING', 'CONFIRMED', 'PROCESSING', 'SHIPPED', 'OUT_FOR_DELIVERY', 'DELIVERED', 'CANCELLED', 'RETURNED')),
-      shipping_address TEXT NOT NULL,
-      estimated_delivery_date TEXT,
-      tracking_number TEXT,
+      plan_id TEXT NOT NULL REFERENCES telecom_plans(plan_id),
+      mobile_number TEXT NOT NULL,
+      activation_date TEXT NOT NULL,
+      expiry_date TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'ACTIVE' CHECK(status IN ('ACTIVE', 'EXPIRED', 'SUSPENDED', 'QUEUED')),
+      auto_renew INTEGER NOT NULL DEFAULT 1,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
 
-    -- Order items
-    CREATE TABLE IF NOT EXISTS order_items (
+    -- Subscriber Live Usage (Data, Voice, SMS)
+    CREATE TABLE IF NOT EXISTS telecom_usage (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      order_item_id TEXT UNIQUE NOT NULL,
-      order_id TEXT NOT NULL REFERENCES orders(order_id) ON DELETE CASCADE,
-      product_id TEXT NOT NULL REFERENCES products(product_id),
-      product_name TEXT NOT NULL,
-      quantity INTEGER NOT NULL,
-      unit_price REAL NOT NULL,
-      total_price REAL NOT NULL
+      usage_id TEXT UNIQUE NOT NULL,
+      customer_id TEXT NOT NULL REFERENCES customer_profiles(customer_id) ON DELETE CASCADE,
+      mobile_number TEXT NOT NULL,
+      data_used_gb REAL NOT NULL DEFAULT 0.0,
+      data_remaining_gb REAL NOT NULL DEFAULT 0.0,
+      voice_used_mins INTEGER NOT NULL DEFAULT 0,
+      voice_remaining_mins INTEGER NOT NULL DEFAULT -1,
+      sms_used INTEGER NOT NULL DEFAULT 0,
+      sms_remaining INTEGER NOT NULL DEFAULT 100,
+      period_start TEXT NOT NULL,
+      period_end TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    -- Recharges (Transaction history)
+    CREATE TABLE IF NOT EXISTS recharges (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      recharge_id TEXT UNIQUE NOT NULL,
+      customer_id TEXT NOT NULL REFERENCES customer_profiles(customer_id) ON DELETE CASCADE,
+      mobile_number TEXT NOT NULL,
+      plan_id TEXT REFERENCES telecom_plans(plan_id),
+      amount REAL NOT NULL,
+      payment_method TEXT NOT NULL,
+      transaction_id TEXT UNIQUE NOT NULL,
+      status TEXT NOT NULL DEFAULT 'SUCCESS' CHECK(status IN ('SUCCESS', 'PENDING', 'FAILED', 'REFUNDED')),
+      created_at TEXT NOT NULL
+    );
+
+    -- Postpaid Bills
+    CREATE TABLE IF NOT EXISTS bills (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      bill_id TEXT UNIQUE NOT NULL,
+      customer_id TEXT NOT NULL REFERENCES customer_profiles(customer_id) ON DELETE CASCADE,
+      mobile_number TEXT NOT NULL,
+      billing_period TEXT NOT NULL,
+      amount REAL NOT NULL,
+      due_date TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'UNPAID' CHECK(status IN ('PAID', 'UNPAID', 'OVERDUE')),
+      breakdown_json TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    );
+
+    -- Payments for Bills & Recharges
+    CREATE TABLE IF NOT EXISTS payments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      payment_id TEXT UNIQUE NOT NULL,
+      bill_id TEXT REFERENCES bills(bill_id),
+      recharge_id TEXT REFERENCES recharges(recharge_id),
+      customer_id TEXT NOT NULL REFERENCES customer_profiles(customer_id) ON DELETE CASCADE,
+      amount REAL NOT NULL,
+      payment_method TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'COMPLETED',
+      transaction_date TEXT NOT NULL
+    );
+
+    -- SIM Cards & eSIM Profiles
+    CREATE TABLE IF NOT EXISTS sim_cards (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      sim_id TEXT UNIQUE NOT NULL,
+      customer_id TEXT NOT NULL REFERENCES customer_profiles(customer_id) ON DELETE CASCADE,
+      mobile_number TEXT NOT NULL,
+      sim_type TEXT NOT NULL DEFAULT 'PHYSICAL' CHECK(sim_type IN ('PHYSICAL', 'ESIM')),
+      iccid TEXT UNIQUE NOT NULL,
+      imsi TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'ACTIVE' CHECK(status IN ('ACTIVE', 'INACTIVE', 'BLOCKED', 'PENDING_ACTIVATION')),
+      activated_at TEXT NOT NULL
+    );
+
+    -- Network Outages (Regional incidents)
+    CREATE TABLE IF NOT EXISTS network_outages (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      outage_id TEXT UNIQUE NOT NULL,
+      region TEXT NOT NULL,
+      city TEXT NOT NULL,
+      affected_service TEXT NOT NULL,
+      network_type TEXT NOT NULL DEFAULT '5G',
+      severity TEXT NOT NULL DEFAULT 'MAJOR' CHECK(severity IN ('MINOR', 'MAJOR', 'CRITICAL')),
+      status TEXT NOT NULL DEFAULT 'INVESTIGATING' CHECK(status IN ('INVESTIGATING', 'IDENTIFIED', 'IN_PROGRESS', 'RESOLVED')),
+      start_time TEXT NOT NULL,
+      estimated_resolution TEXT NOT NULL,
+      description TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    -- Reported Network Issues by subscribers
+    CREATE TABLE IF NOT EXISTS network_issues (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      issue_id TEXT UNIQUE NOT NULL,
+      customer_id TEXT NOT NULL REFERENCES customer_profiles(customer_id) ON DELETE CASCADE,
+      mobile_number TEXT NOT NULL,
+      issue_type TEXT NOT NULL CHECK(issue_type IN ('SLOW_DATA', 'NO_SIGNAL', 'CALL_DROPS', 'SMS_FAILURE', '5G_INACCESSIBLE')),
+      status TEXT NOT NULL DEFAULT 'OPEN' CHECK(status IN ('OPEN', 'INVESTIGATING', 'RESOLVED')),
+      reported_at TEXT NOT NULL,
+      resolved_at TEXT
     );
 
     -- Support conversations
@@ -143,7 +235,7 @@ export function initializeSchema(db: DatabaseSync): void {
       conversation_id TEXT REFERENCES conversations(conversation_id) ON DELETE SET NULL,
       subject TEXT NOT NULL,
       description TEXT NOT NULL,
-      category TEXT NOT NULL DEFAULT 'GENERAL',
+      category TEXT NOT NULL DEFAULT 'NETWORK' CHECK(category IN ('NETWORK', 'BILLING', 'RECHARGE', 'SIM', 'PLAN', 'ROAMING', 'GENERAL')),
       priority TEXT NOT NULL DEFAULT 'MEDIUM' CHECK(priority IN ('LOW', 'MEDIUM', 'HIGH', 'URGENT')),
       status TEXT NOT NULL DEFAULT 'OPEN' CHECK(status IN ('OPEN', 'IN_PROGRESS', 'WAITING_FOR_CUSTOMER', 'RESOLVED', 'CLOSED')),
       assigned_agent_id TEXT REFERENCES support_agents(agent_id) ON DELETE SET NULL,
@@ -244,11 +336,63 @@ export function initializeSchema(db: DatabaseSync): void {
       updated_at TEXT NOT NULL
     );
 
+    -- Legacy/Compatibility tables so existing generic references still resolve seamlessly
+    CREATE TABLE IF NOT EXISTS products (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      product_id TEXT UNIQUE NOT NULL,
+      name TEXT NOT NULL,
+      sku TEXT UNIQUE NOT NULL,
+      description TEXT NOT NULL,
+      category TEXT NOT NULL,
+      price REAL NOT NULL,
+      currency TEXT NOT NULL DEFAULT 'INR',
+      stock_quantity INTEGER NOT NULL DEFAULT 0,
+      availability_status TEXT NOT NULL DEFAULT 'IN_STOCK',
+      specifications TEXT,
+      warranty_information TEXT NOT NULL,
+      return_policy TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS orders (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      order_id TEXT UNIQUE NOT NULL,
+      customer_id TEXT NOT NULL REFERENCES customer_profiles(customer_id) ON DELETE CASCADE,
+      order_date TEXT NOT NULL,
+      total_amount REAL NOT NULL,
+      currency TEXT NOT NULL DEFAULT 'INR',
+      payment_status TEXT NOT NULL DEFAULT 'PAID',
+      order_status TEXT NOT NULL DEFAULT 'CONFIRMED',
+      shipping_address TEXT NOT NULL,
+      estimated_delivery_date TEXT,
+      tracking_number TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS order_items (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      order_item_id TEXT UNIQUE NOT NULL,
+      order_id TEXT NOT NULL REFERENCES orders(order_id) ON DELETE CASCADE,
+      product_id TEXT NOT NULL,
+      product_name TEXT NOT NULL,
+      quantity INTEGER NOT NULL,
+      unit_price REAL NOT NULL,
+      total_price REAL NOT NULL
+    );
+
     -- Indexes for performance
     CREATE INDEX IF NOT EXISTS idx_customers_user_id ON customer_profiles(user_id);
-    CREATE INDEX IF NOT EXISTS idx_customers_email ON customer_profiles(email);
-    CREATE INDEX IF NOT EXISTS idx_orders_customer_id ON orders(customer_id);
-    CREATE INDEX IF NOT EXISTS idx_order_items_order_id ON order_items(order_id);
+    CREATE INDEX IF NOT EXISTS idx_customers_phone ON customer_profiles(phone_number);
+    CREATE INDEX IF NOT EXISTS idx_plans_status ON telecom_plans(status);
+    CREATE INDEX IF NOT EXISTS idx_subs_customer_id ON subscriptions(customer_id);
+    CREATE INDEX IF NOT EXISTS idx_subs_phone ON subscriptions(mobile_number);
+    CREATE INDEX IF NOT EXISTS idx_usage_customer_id ON telecom_usage(customer_id);
+    CREATE INDEX IF NOT EXISTS idx_recharges_customer_id ON recharges(customer_id);
+    CREATE INDEX IF NOT EXISTS idx_bills_customer_id ON bills(customer_id);
+    CREATE INDEX IF NOT EXISTS idx_sims_customer_id ON sim_cards(customer_id);
+    CREATE INDEX IF NOT EXISTS idx_outages_city ON network_outages(city);
     CREATE INDEX IF NOT EXISTS idx_conversations_customer_id ON conversations(customer_id);
     CREATE INDEX IF NOT EXISTS idx_messages_conversation_id ON messages(conversation_id);
     CREATE INDEX IF NOT EXISTS idx_tickets_customer_id ON support_tickets(customer_id);
@@ -257,5 +401,5 @@ export function initializeSchema(db: DatabaseSync): void {
     CREATE INDEX IF NOT EXISTS idx_audit_timestamp ON audit_logs(timestamp);
   `);
 
-  logger.info('Database schema successfully initialized.');
+  logger.info('Telecom database schema successfully initialized.');
 }

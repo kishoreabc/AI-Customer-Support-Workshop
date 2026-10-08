@@ -364,6 +364,62 @@ export const ChatPage: React.FC = () => {
             );
           })}
 
+          {messages.length === 0 && !loading && (
+            <div style={{ textAlign: 'center', padding: '40px 20px', maxWidth: '600px', margin: '0 auto' }}>
+              <div
+                style={{
+                  width: '56px',
+                  height: '56px',
+                  borderRadius: '16px',
+                  background: 'linear-gradient(135deg, rgba(6, 182, 212, 0.2), rgba(99, 102, 241, 0.2))',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  margin: '0 auto 16px',
+                  color: 'var(--accent-cyan)',
+                }}
+              >
+                <Cpu size={28} />
+              </div>
+              <h2 style={{ fontSize: '1.25rem', marginBottom: '8px' }}>TelecomOne AI Assistant</h2>
+              <p style={{ color: 'var(--text-secondary)', fontSize: '0.88rem', marginBottom: '24px' }}>
+                Instant resolution for mobile plans, real-time data usage, network troubleshooting, recharge status, eSIM, and outages.
+              </p>
+
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', justifyContent: 'center' }}>
+                {[
+                  'How much high-speed data do I have left?',
+                  'Is there a network outage in Chennai?',
+                  'How do I activate eSIM on my phone?',
+                  'What is the best 5G unlimited plan?',
+                  'Check my latest bill breakdown',
+                ].map((prompt, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => {
+                      setInputMessage(prompt);
+                    }}
+                    style={{
+                      background: 'rgba(255, 255, 255, 0.04)',
+                      border: '1px solid var(--border-subtle)',
+                      borderRadius: '20px',
+                      padding: '8px 14px',
+                      color: 'var(--text-primary)',
+                      fontSize: '0.8rem',
+                      cursor: 'pointer',
+                      transition: 'var(--transition)',
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.borderColor = 'var(--accent-primary)')}
+                    onMouseLeave={(e) => (e.currentTarget.style.borderColor = 'var(--border-subtle)')}
+                  >
+                    {prompt}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Tools Activity Indicator */}
           {toolsRunning.map((t, idx) => (
             <div
@@ -397,7 +453,7 @@ export const ChatPage: React.FC = () => {
             placeholder={
               isHumanHandled
                 ? 'Type your message to the human support agent...'
-                : 'Ask about orders, products, warranty, returns...'
+                : 'Ask about data usage, 5G plans, network issues, recharges, eSIM...'
             }
             disabled={sending}
           />

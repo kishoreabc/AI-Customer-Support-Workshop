@@ -27,22 +27,48 @@ const createPromptSchema = z.object({
 
 // GET /api/v1/admin/dashboard
 adminRouter.get('/dashboard', authenticateJwt, requireRole('ADMIN', 'SUPPORT_AGENT'), (_req: Request, res: Response) => {
-  const totalCustomers = (queryGet('SELECT COUNT(*) as count FROM customer_profiles') as any)?.count || 0;
-  const activeCustomers = (queryGet("SELECT COUNT(*) as count FROM customer_profiles WHERE customer_status = 'ACTIVE'") as any)?.count || 0;
+  const totalSubscribers = (queryGet('SELECT COUNT(*) as count FROM customer_profiles') as any)?.count || 0;
+  const activeSubscribers = (queryGet("SELECT COUNT(*) as count FROM customer_profiles WHERE customer_status = 'ACTIVE'") as any)?.count || 0;
+  const activePlans = (queryGet("SELECT COUNT(*) as count FROM telecom_plans WHERE status = 'ACTIVE'") as any)?.count || 0;
+  const todayRecharges = (queryGet('SELECT COUNT(*) as count FROM recharges') as any)?.count || 0;
+  const rechargeRevenue = (queryGet("SELECT COALESCE(SUM(amount), 0) as total FROM recharges WHERE status = 'SUCCESS'") as any)?.total || 0;
   const openTickets = (queryGet("SELECT COUNT(*) as count FROM support_tickets WHERE status IN ('OPEN', 'IN_PROGRESS', 'WAITING_FOR_CUSTOMER')") as any)?.count || 0;
   const resolvedTickets = (queryGet("SELECT COUNT(*) as count FROM support_tickets WHERE status IN ('RESOLVED', 'CLOSED')") as any)?.count || 0;
+  const networkIssues = (queryGet("SELECT COUNT(*) as count FROM support_tickets WHERE category = 'NETWORK' AND status != 'RESOLVED'") as any)?.count || 0;
+  const activeOutages = (queryGet("SELECT COUNT(*) as count FROM network_outages WHERE status != 'RESOLVED'") as any)?.count || 0;
   const activeConversations = (queryGet("SELECT COUNT(*) as count FROM conversations WHERE status IN ('AI_ACTIVE', 'OPEN')") as any)?.count || 0;
   const escalatedConversations = (queryGet("SELECT COUNT(*) as count FROM conversations WHERE status IN ('ESCALATED', 'HUMAN_HANDOFF')") as any)?.count || 0;
   const totalAIConversations = (queryGet('SELECT COUNT(*) as count FROM conversations') as any)?.count || 0;
-  const totalHumanEscalations = (queryGet("SELECT COUNT(*) as count FROM conversations WHERE escalation_reason IS NOT NULL") as any)?.count || 0;
+
+  const totalConv = Math.max(1, totalAIConversations);
+  const humanEscalationRate = Number(((escalatedConversations / totalConv) * 100).toFixed(1));
+  const aiResolutionRate = Number((100 - humanEscalationRate).toFixed(1));
 
   const recentTickets = queryAll(`
-    SELECT t.ticket_id, t.subject, t.status, t.priority, t.created_at,
-           c.first_name as customer_first_name, c.last_name as customer_last_name
+    SELECT t.ticket_id, t.subject, t.category, t.status, t.priority, t.created_at,
+           c.first_name as customer_first_name, c.last_name as customer_last_name, c.phone_number
     FROM support_tickets t
     JOIN customer_profiles c ON t.customer_id = c.customer_id
     ORDER BY t.created_at DESC
     LIMIT 6
+  `);
+
+  const recentRecharges = queryAll(`
+    SELECT r.recharge_id, r.amount, r.payment_method, r.transaction_id, r.created_at,
+           c.first_name, c.last_name, c.phone_number, p.name as plan_name
+    FROM recharges r
+    JOIN customer_profiles c ON r.customer_id = c.customer_id
+    LEFT JOIN telecom_plans p ON r.plan_id = p.plan_id
+    ORDER BY r.created_at DESC
+    LIMIT 6
+  `);
+
+  const activeOutagesList = queryAll(`
+    SELECT outage_id, region, city, affected_service, severity, status, estimated_resolution, description
+    FROM network_outages
+    WHERE status != 'RESOLVED'
+    ORDER BY severity DESC
+    LIMIT 4
   `);
 
   const recentAudits = queryAll(`
@@ -54,16 +80,26 @@ adminRouter.get('/dashboard', authenticateJwt, requireRole('ADMIN', 'SUPPORT_AGE
 
   sendSuccess(res, {
     metrics: {
-      totalCustomers,
-      activeCustomers,
+      totalSubscribers,
+      activeSubscribers,
+      totalCustomers: totalSubscribers,
+      activeCustomers: activeSubscribers,
+      activePlans,
+      todayRecharges,
+      rechargeRevenue,
       openTickets,
       resolvedTickets,
+      networkIssues,
+      activeOutages,
       activeConversations,
       escalatedConversations,
       totalAIConversations,
-      totalHumanEscalations,
+      aiResolutionRate,
+      humanEscalationRate,
     },
     recentTickets,
+    recentRecharges,
+    activeOutagesList,
     recentAudits,
   });
 });

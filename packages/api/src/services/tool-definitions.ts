@@ -5,7 +5,7 @@ export const AI_TOOLS: ChatCompletionTool[] = [
     type: 'function',
     function: {
       name: 'get_customer_profile',
-      description: 'Retrieve the profile and contact details of the currently authenticated customer.',
+      description: 'Retrieve the telecom subscriber profile, phone number, and account standing of the currently authenticated customer.',
       parameters: {
         type: 'object',
         properties: {},
@@ -15,14 +15,82 @@ export const AI_TOOLS: ChatCompletionTool[] = [
   {
     type: 'function',
     function: {
-      name: 'get_customer_orders',
-      description: 'List recent orders for the currently authenticated customer.',
+      name: 'get_active_plan',
+      description: 'Retrieve the currently active telecom/mobile subscription plan, validity days remaining, and expiry date.',
+      parameters: {
+        type: 'object',
+        properties: {},
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_available_plans',
+      description: 'Search and filter available telecom plans (5G unlimited, prepaid, annual, data booster, roaming).',
+      parameters: {
+        type: 'object',
+        properties: {
+          category: {
+            type: 'string',
+            description: 'Filter category: UNLIMITED_5G, POPULAR_MONTHLY, ANNUAL, INTERNATIONAL_ROAMING, DATA_ADDON',
+          },
+          is5GOnly: {
+            type: 'boolean',
+            description: 'Filter for plans with Unlimited 5G network support',
+          },
+          maxPrice: {
+            type: 'number',
+            description: 'Maximum plan price filter in INR',
+          },
+        },
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_data_usage',
+      description: 'Get real-time high-speed data consumed and remaining GB for the current billing cycle/day.',
+      parameters: {
+        type: 'object',
+        properties: {},
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_voice_usage',
+      description: 'Get total voice minutes used and remaining call balance.',
+      parameters: {
+        type: 'object',
+        properties: {},
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_sms_usage',
+      description: 'Get daily SMS count sent and remaining quota.',
+      parameters: {
+        type: 'object',
+        properties: {},
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_recharge_history',
+      description: 'Retrieve recent recharge transactions, amounts, and dates for the subscriber.',
       parameters: {
         type: 'object',
         properties: {
           limit: {
             type: 'number',
-            description: 'Maximum number of orders to retrieve (default 5)',
+            description: 'Max records to return (default 5)',
           },
         },
       },
@@ -31,89 +99,148 @@ export const AI_TOOLS: ChatCompletionTool[] = [
   {
     type: 'function',
     function: {
-      name: 'get_order_details',
-      description: 'Retrieve full details for a specific order by orderId, including line items and shipping status.',
+      name: 'get_recharge_status',
+      description: 'Check the status of a specific recharge by transactionId or rechargeId.',
       parameters: {
         type: 'object',
         properties: {
-          orderId: {
+          transactionId: {
             type: 'string',
-            description: 'The order ID (e.g., ord-1001)',
+            description: 'The transaction ID or recharge ID (e.g., TXN-UPI-98761234 or rch-2001)',
           },
         },
-        required: ['orderId'],
+        required: ['transactionId'],
       },
     },
   },
   {
     type: 'function',
     function: {
-      name: 'get_order_status',
-      description: 'Get current shipment status, tracking number, and estimated delivery date for an order.',
+      name: 'get_bill',
+      description: 'Retrieve the latest postpaid bill, amount due, due date, status, and itemized tax breakdown.',
       parameters: {
         type: 'object',
-        properties: {
-          orderId: {
-            type: 'string',
-            description: 'The order ID (e.g., ord-1001)',
-          },
-        },
-        required: ['orderId'],
+        properties: {},
       },
     },
   },
   {
     type: 'function',
     function: {
-      name: 'search_products',
-      description: 'Search the product catalog for specifications, pricing, stock, warranty, and return policies.',
+      name: 'get_billing_history',
+      description: 'Retrieve past postpaid bills and payment records for the subscriber.',
       parameters: {
         type: 'object',
-        properties: {
-          query: {
-            type: 'string',
-            description: 'Product name, SKU, or keyword to search for',
-          },
-          category: {
-            type: 'string',
-            description: 'Optional category filter (e.g., Laptops, Audio, Monitors, Furniture, Accessories)',
-          },
-        },
-        required: ['query'],
+        properties: {},
       },
     },
   },
   {
     type: 'function',
     function: {
-      name: 'get_product_details',
-      description: 'Get full specifications, warranty, and return policy for a specific product by productId.',
+      name: 'get_sim_details',
+      description: 'Retrieve SIM card or eSIM profile information, ICCID, SIM type, and activation status.',
       parameters: {
         type: 'object',
-        properties: {
-          productId: {
-            type: 'string',
-            description: 'Product ID (e.g., prod-101)',
-          },
-        },
-        required: ['productId'],
+        properties: {},
       },
     },
   },
   {
     type: 'function',
     function: {
-      name: 'get_refund_status',
-      description: 'Check refund status or calculate return/refund eligibility for an order based on delivery date and return window.',
+      name: 'check_sim_status',
+      description: 'Check whether the subscriber SIM is currently ACTIVE, BLOCKED, or SUSPENDED.',
+      parameters: {
+        type: 'object',
+        properties: {},
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'check_network_status',
+      description: 'Check mobile network tower status, 4G/5G signal health, and service availability in a city or area.',
       parameters: {
         type: 'object',
         properties: {
-          orderId: {
+          city: {
             type: 'string',
-            description: 'Order ID to evaluate refund eligibility for',
+            description: 'City name (e.g., Mumbai, Chennai, Pune)',
           },
         },
-        required: ['orderId'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'check_network_outage',
+      description: 'Check whether there is an active network outage or cable disruption in a specific city/region.',
+      parameters: {
+        type: 'object',
+        properties: {
+          city: {
+            type: 'string',
+            description: 'City to check for regional outages (e.g. Chennai, Mumbai, Pune)',
+          },
+        },
+        required: ['city'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'check_5g_coverage',
+      description: 'Check 5G Standalone (SA) coverage and availability by city or pincode.',
+      parameters: {
+        type: 'object',
+        properties: {
+          location: {
+            type: 'string',
+            description: 'City name or pincode (e.g., Chennai or 600017)',
+          },
+        },
+        required: ['location'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_roaming_plans',
+      description: 'Retrieve domestic and international roaming packs for travellers.',
+      parameters: {
+        type: 'object',
+        properties: {
+          country: {
+            type: 'string',
+            description: 'Destination country (e.g., UAE, USA, UK, Global)',
+          },
+        },
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'create_recharge',
+      description: 'Process and execute an immediate recharge for the authenticated customer using a plan ID.',
+      parameters: {
+        type: 'object',
+        properties: {
+          planId: {
+            type: 'string',
+            description: 'The plan ID to recharge with (e.g., plan-5g-799, plan-prep-299, plan-booster-49)',
+          },
+          paymentMethod: {
+            type: 'string',
+            description: 'Payment method (e.g., UPI, CREDIT_CARD, WALLET)',
+          },
+        },
+        required: ['planId'],
       },
     },
   },
@@ -121,26 +248,27 @@ export const AI_TOOLS: ChatCompletionTool[] = [
     type: 'function',
     function: {
       name: 'create_support_ticket',
-      description: 'Create a formal support ticket for issues that require staff investigation or human review.',
+      description: 'Create a telecom support ticket for network issues, billing disputes, SIM problems, or general complaints.',
       parameters: {
         type: 'object',
         properties: {
           subject: {
             type: 'string',
-            description: 'Brief summary of the issue',
+            description: 'Short summary of the issue',
           },
           description: {
             type: 'string',
-            description: 'Detailed description of the customer inquiry or problem',
+            description: 'Detailed description of the customer issue',
           },
           category: {
             type: 'string',
-            description: 'Category: GENERAL, BILLING, SHIPPING, TECHNICAL, REFUND',
+            enum: ['NETWORK', 'BILLING', 'RECHARGE', 'SIM', 'PLAN', 'ROAMING', 'GENERAL'],
+            description: 'Ticket classification category',
           },
           priority: {
             type: 'string',
             enum: ['LOW', 'MEDIUM', 'HIGH', 'URGENT'],
-            description: 'Priority level of the ticket',
+            description: 'Priority level (defaults to MEDIUM or HIGH for outages)',
           },
         },
         required: ['subject', 'description'],
@@ -150,52 +278,14 @@ export const AI_TOOLS: ChatCompletionTool[] = [
   {
     type: 'function',
     function: {
-      name: 'get_support_ticket',
-      description: 'Look up the status and details of an existing support ticket by ticketId.',
-      parameters: {
-        type: 'object',
-        properties: {
-          ticketId: {
-            type: 'string',
-            description: 'The support ticket ID (e.g., tik-201)',
-          },
-        },
-        required: ['ticketId'],
-      },
-    },
-  },
-  {
-    type: 'function',
-    function: {
-      name: 'update_support_ticket',
-      description: 'Add information or update an existing support ticket.',
-      parameters: {
-        type: 'object',
-        properties: {
-          ticketId: {
-            type: 'string',
-            description: 'Ticket ID to update',
-          },
-          notes: {
-            type: 'string',
-            description: 'Additional customer message or update to append',
-          },
-        },
-        required: ['ticketId', 'notes'],
-      },
-    },
-  },
-  {
-    type: 'function',
-    function: {
       name: 'escalate_to_human',
-      description: 'Escalate the current support conversation to a human support agent. Use this when the customer asks for a human, when frustration is detected, or when complex manual action is needed.',
+      description: 'Escalate the support session immediately to a human telecom agent.',
       parameters: {
         type: 'object',
         properties: {
           reason: {
             type: 'string',
-            description: 'The clear reason for escalation (e.g., "Customer requested human agent", "Frustration detected", "Complex refund authorization needed")',
+            description: 'Detailed justification for the escalation',
           },
         },
         required: ['reason'],
@@ -206,13 +296,13 @@ export const AI_TOOLS: ChatCompletionTool[] = [
     type: 'function',
     function: {
       name: 'search_knowledge_base',
-      description: 'Perform semantic RAG search across company policy guides, warranty documents, troubleshooting manuals, and terms.',
+      description: 'Search telecom documentation, APN settings, eSIM guides, 5G troubleshooting, and roaming manuals via RAG.',
       parameters: {
         type: 'object',
         properties: {
           query: {
             type: 'string',
-            description: 'Natural language search query regarding policies, repairs, or procedures',
+            description: 'The semantic query text to search',
           },
         },
         required: ['query'],
@@ -222,31 +312,14 @@ export const AI_TOOLS: ChatCompletionTool[] = [
   {
     type: 'function',
     function: {
-      name: 'search_faq',
-      description: 'Search frequently asked questions and official answers.',
+      name: 'search_faqs',
+      description: 'Search telecom FAQs for quick answers regarding recharges, data speeds, and network settings.',
       parameters: {
         type: 'object',
         properties: {
           query: {
             type: 'string',
-            description: 'FAQ topic or question keyword',
-          },
-        },
-        required: ['query'],
-      },
-    },
-  },
-  {
-    type: 'function',
-    function: {
-      name: 'search_customer',
-      description: 'Search customer database (Admin / Internal Agent tool only). Forbidden for standard customer chat.',
-      parameters: {
-        type: 'object',
-        properties: {
-          query: {
-            type: 'string',
-            description: 'Customer name or email to search',
+            description: 'The FAQ search keywords',
           },
         },
         required: ['query'],

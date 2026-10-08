@@ -1,35 +1,18 @@
 import { describe, it, expect, beforeAll } from 'vitest';
-import { createApp } from '../app.js';
 import { getDatabase } from '../database/connection.js';
 import { initializeSchema } from '../database/schema.js';
 import { seedDatabase } from '../database/seed.js';
 import { processCustomerMessage, detectFrustration, detectHumanRequest } from '../services/ai-agent.js';
 import { executeTool } from '../services/tool-executor.js';
 
-describe('AI Customer Support Platform Suite', () => {
-  let app: any;
-  let aliceToken: string;
-  let bobToken: string;
-  let adminToken: string;
-  let agentToken: string;
-
+describe('AI Telecom Customer Support Platform Suite', () => {
   beforeAll(async () => {
     const db = getDatabase();
     initializeSchema(db);
-    await seedDatabase();
-    app = createApp();
-
-    // Login Alice (Customer 1)
-    const resAlice = await fetch('http://localhost:3000/api/v1/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: 'alice@example.com', password: 'password123' }),
-    }).catch(() => null);
-
-    // If server not running on port 3000 during test, we test handlers or direct imports
+    await seedDatabase(false);
   });
 
-  describe('Security & Isolation Requirements', () => {
+  describe('Telecom AI Tools & Security Requirements', () => {
     it('1. Rejects search_customer tool in customer chat context', async () => {
       const result = await executeTool(
         'search_customer',
@@ -46,11 +29,11 @@ describe('AI Customer Support Platform Suite', () => {
       expect(result.error).toContain('strictly prohibited');
     });
 
-    it('2. Denies access when Customer 1 queries Customer 2 order details', async () => {
-      // ord-1003 belongs to cust-2 (Bob)
+    it('2. Denies access when Customer 1 queries Customer 2 recharge status', async () => {
+      // rch-2003 belongs to cust-2 (Bob)
       const result = await executeTool(
-        'get_order_details',
-        { orderId: 'ord-1003' },
+        'get_recharge_status',
+        { transactionId: 'rch-2003' },
         {
           conversationId: 'test-conv',
           customerId: 'cust-1', // Alice
@@ -60,42 +43,104 @@ describe('AI Customer Support Platform Suite', () => {
       );
 
       expect(result.success).toBe(false);
-      expect(result.error).toContain('Access Denied');
+      expect(result.error).toContain('Security isolation');
     });
 
-    it('3. Successfully returns own order details for Customer 1', async () => {
-      // ord-1001 belongs to cust-1 (Alice)
+    it('3. Successfully returns active plan for Customer 1', async () => {
       const result = await executeTool(
-        'get_order_details',
-        { orderId: 'ord-1001' },
+        'get_active_plan',
+        {},
         {
           conversationId: 'test-conv',
-          customerId: 'cust-1', // Alice
+          customerId: 'cust-1',
           userRole: 'CUSTOMER',
           userId: 'usr-cust-1',
         }
       );
 
       expect(result.success).toBe(true);
-      expect(result.data.order_id).toBe('ord-1001');
-      expect(result.data.items.length).toBeGreaterThan(0);
+      expect(result.data.plan_name).toBe('Unlimited 5G 799');
+      expect(result.data.is_5g).toBe(1);
     });
 
-    it('4. Detects frustration keywords correctly', () => {
-      expect(detectFrustration('I am extremely angry and this is unacceptable')).toBe(true);
-      expect(detectFrustration('Where is my tracking number?')).toBe(false);
+    it('4. Successfully returns live data usage for Customer 1', async () => {
+      const result = await executeTool(
+        'get_data_usage',
+        {},
+        {
+          conversationId: 'test-conv',
+          customerId: 'cust-1',
+          userRole: 'CUSTOMER',
+          userId: 'usr-cust-1',
+        }
+      );
+
+      expect(result.success).toBe(true);
+      expect(result.data.data_remaining_gb).toBe(7.4);
+      expect(result.data.isQuotaExhausted).toBe(false);
     });
 
-    it('5. Detects human representative requests accurately', () => {
-      expect(detectHumanRequest('I want to talk to a human agent please')).toBe(true);
-      expect(detectHumanRequest('Can I speak with a representative?')).toBe(true);
-      expect(detectHumanRequest('What is the battery life of the laptop?')).toBe(false);
+    it('5. Detects regional network outage in Chennai', async () => {
+      const result = await executeTool(
+        'check_network_outage',
+        { city: 'Chennai' },
+        {
+          conversationId: 'test-conv',
+          customerId: 'cust-2', // Bob in Chennai
+          userRole: 'CUSTOMER',
+          userId: 'usr-cust-2',
+        }
+      );
+
+      expect(result.success).toBe(true);
+      expect(result.data.outageFound).toBe(true);
+      expect(result.data.activeOutages[0].city).toBe('Chennai');
+      expect(result.data.activeOutages[0].severity).toBe('MAJOR');
     });
 
-    it('6. Automatically escalates and stops AI auto-reply when human takeover occurs', async () => {
-      // Start a conversation for Alice
+    it('6. Checks 5G coverage successfully', async () => {
+      const result = await executeTool(
+        'check_5g_coverage',
+        { location: 'Mumbai' },
+        {
+          conversationId: 'test-conv',
+          customerId: 'cust-1',
+          userRole: 'CUSTOMER',
+          userId: 'usr-cust-1',
+        }
+      );
+
+      expect(result.success).toBe(true);
+      expect(result.data.coverage5GAvailable).toBe(true);
+      expect(result.data.technology).toContain('True 5G');
+    });
+
+    it('7. Returns international roaming packs', async () => {
+      const result = await executeTool(
+        'get_roaming_plans',
+        {},
+        {
+          conversationId: 'test-conv',
+          customerId: 'cust-1',
+          userRole: 'CUSTOMER',
+          userId: 'usr-cust-1',
+        }
+      );
+
+      expect(result.success).toBe(true);
+      expect(result.data.length).toBeGreaterThan(0);
+      expect(result.data.some((p: any) => p.name.includes('Roaming'))).toBe(true);
+    });
+
+    it('8. Detects frustration and human keywords correctly', () => {
+      expect(detectFrustration('Your network service is terrible, worst company ever!')).toBe(true);
+      expect(detectHumanRequest('I want to speak with a human agent please')).toBe(true);
+      expect(detectFrustration('What is my remaining data balance?')).toBe(false);
+    });
+
+    it('9. Automatically escalates and stops AI auto-reply when human takeover occurs', async () => {
       const db = getDatabase();
-      const convId = `conv-test-takeover-${Date.now()}`;
+      const convId = `conv-telecom-${Date.now()}`;
       const now = new Date().toISOString();
 
       db.prepare(`
@@ -107,7 +152,7 @@ describe('AI Customer Support Platform Suite', () => {
       const response = await processCustomerMessage({
         conversationId: convId,
         customerId: 'cust-1',
-        message: 'I demand to talk to a real person immediately!',
+        message: 'I demand to talk to a real person right now!',
         userRole: 'CUSTOMER',
         userId: 'usr-cust-1',
       });
@@ -119,7 +164,7 @@ describe('AI Customer Support Platform Suite', () => {
       const updatedConv = db.prepare('SELECT status FROM conversations WHERE conversation_id = ?').get(convId) as any;
       expect(updatedConv.status).toBe('HUMAN_HANDOFF');
 
-      // Next message should NOT trigger AI automatic response
+      // Subsequent message should NOT trigger AI automatic response
       const followup = await processCustomerMessage({
         conversationId: convId,
         customerId: 'cust-1',
@@ -128,7 +173,95 @@ describe('AI Customer Support Platform Suite', () => {
         userId: 'usr-cust-1',
       });
 
-      expect(followup.content).toContain('received by your assigned human support agent');
+      expect(followup.escalated).toBe(true);
+      expect(followup.toolCallsExecuted.length).toBe(0);
+      expect(followup.content).toContain('human support representative has taken over');
     });
+    it('10. Retrieves subscriber SIM card details', async () => {
+      const result = await executeTool(
+        'get_sim_details',
+        {},
+        {
+          conversationId: 'test-conv',
+          customerId: 'cust-1',
+          userRole: 'CUSTOMER',
+          userId: 'usr-cust-1',
+        }
+      );
+
+      expect(result.success).toBe(true);
+      expect(result.data.iccid).toBeDefined();
+      expect(result.data.status).toBe('ACTIVE');
+    });
+
+    it('11. Checks subscriber SIM status and active status', async () => {
+      const result = await executeTool(
+        'check_sim_status',
+        {},
+        {
+          conversationId: 'test-conv',
+          customerId: 'cust-1',
+          userRole: 'CUSTOMER',
+          userId: 'usr-cust-1',
+        }
+      );
+
+      expect(result.success).toBe(true);
+      expect(result.data.isActive).toBe(true);
+      expect(result.data.status).toBe('ACTIVE');
+    });
+
+    it('12. Checks network health status for a city', async () => {
+      const result = await executeTool(
+        'check_network_status',
+        { city: 'Mumbai' },
+        {
+          conversationId: 'test-conv',
+          customerId: 'cust-1',
+          userRole: 'CUSTOMER',
+          userId: 'usr-cust-1',
+        }
+      );
+
+      expect(result.success).toBe(true);
+      expect(result.data.status).toBe('OPERATIONAL');
+      expect(result.data.city).toBe('Mumbai');
+    });
+
+    it('13. Filters available telecom plans by 5G support', async () => {
+      const result = await executeTool(
+        'get_available_plans',
+        { is5GOnly: true },
+        {
+          conversationId: 'test-conv',
+          customerId: 'cust-1',
+          userRole: 'CUSTOMER',
+          userId: 'usr-cust-1',
+        }
+      );
+
+      expect(result.success).toBe(true);
+      expect(result.data.length).toBeGreaterThan(0);
+      expect(result.data.every((p: any) => p.is_5g === 1)).toBe(true);
+    });
+
+    it('14. Retrieves customer latest bill with itemized breakdown', async () => {
+      const result = await executeTool(
+        'get_bill',
+        {},
+        {
+          conversationId: 'test-conv',
+          customerId: 'cust-1',
+          userRole: 'CUSTOMER',
+          userId: 'usr-cust-1',
+        }
+      );
+
+      expect(result.success).toBe(true);
+      expect(result.data.bill_id).toBeDefined();
+      expect(result.data.breakdown).toBeDefined();
+    });
+
   });
 });
+

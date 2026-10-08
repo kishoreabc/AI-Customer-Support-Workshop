@@ -13,6 +13,11 @@ import { AdminLogin } from './features/auth/AdminLogin.js';
 
 // Customer Pages
 import { ChatPage } from './features/chat/ChatPage.js';
+import { MyPlanPage } from './features/customer/MyPlanPage.js';
+import { MyUsagePage } from './features/customer/MyUsagePage.js';
+import { RechargePage } from './features/customer/RechargePage.js';
+import { BillsPage } from './features/customer/BillsPage.js';
+import { MySimPage } from './features/customer/MySimPage.js';
 import { ConversationsPage } from './features/customer/ConversationsPage.js';
 import { OrdersPage } from './features/customer/OrdersPage.js';
 import { TicketsPage } from './features/customer/TicketsPage.js';
@@ -22,6 +27,11 @@ import { ProfilePage } from './features/customer/ProfilePage.js';
 import { DashboardPage } from './features/admin/DashboardPage.js';
 import { AdminCustomersPage } from './features/customers/AdminCustomersPage.js';
 import { CustomerDetailPage } from './features/customers/CustomerDetailPage.js';
+import { AdminPlansPage } from './features/plans/AdminPlansPage.js';
+import { AdminRechargesPage } from './features/recharges/AdminRechargesPage.js';
+import { AdminBillsPage } from './features/bills/AdminBillsPage.js';
+import { AdminSimsPage } from './features/sims/AdminSimsPage.js';
+import { AdminOutagesPage } from './features/network/AdminOutagesPage.js';
 import { AdminProductsPage } from './features/products/AdminProductsPage.js';
 import { AdminOrdersPage } from './features/orders/AdminOrdersPage.js';
 import { AdminConversationsPage } from './features/conversations/AdminConversationsPage.js';
@@ -51,6 +61,11 @@ export const App: React.FC = () => {
       >
         <Route index element={<Navigate to="/chat" replace />} />
         <Route path="chat" element={<ChatPage />} />
+        <Route path="plan" element={<MyPlanPage />} />
+        <Route path="usage" element={<MyUsagePage />} />
+        <Route path="recharge" element={<RechargePage />} />
+        <Route path="bills" element={<BillsPage />} />
+        <Route path="sim" element={<MySimPage />} />
         <Route path="conversations" element={<ConversationsPage />} />
         <Route path="orders" element={<OrdersPage />} />
         <Route path="tickets" element={<TicketsPage />} />
@@ -69,6 +84,11 @@ export const App: React.FC = () => {
         <Route index element={<DashboardPage />} />
         <Route path="customers" element={<AdminCustomersPage />} />
         <Route path="customers/:id" element={<CustomerDetailPage />} />
+        <Route path="plans" element={<AdminPlansPage />} />
+        <Route path="recharges" element={<AdminRechargesPage />} />
+        <Route path="bills" element={<AdminBillsPage />} />
+        <Route path="sims" element={<AdminSimsPage />} />
+        <Route path="outages" element={<AdminOutagesPage />} />
         <Route path="products" element={<AdminProductsPage />} />
         <Route path="orders" element={<AdminOrdersPage />} />
         <Route path="conversations" element={<AdminConversationsPage />} />

@@ -1,20 +1,24 @@
 import bcrypt from 'bcryptjs';
 import { getDatabase, runTransaction } from './connection.js';
 import { initializeSchema } from './schema.js';
+import { generateEmbedding } from '../services/embedding.js';
 import { logger } from '../utils/logger.js';
 
-export async function seedDatabase(): Promise<void> {
+export async function seedDatabase(force: boolean = false): Promise<void> {
   const db = getDatabase();
   initializeSchema(db);
 
-  logger.info('Checking if database already has seed data...');
-  const userCountRow = db.prepare('SELECT COUNT(*) as count FROM users').get() as { count: number };
-  if (userCountRow && userCountRow.count > 0) {
-    logger.info('Database already seeded. Skipping.');
-    return;
+  if (!force) {
+    logger.info('Checking if database already has seed data...');
+    const userCountRow = db.prepare('SELECT COUNT(*) as count FROM users').get() as { count: number };
+    const planCountRow = db.prepare('SELECT COUNT(*) as count FROM telecom_plans').get() as { count: number };
+    if (userCountRow && userCountRow.count > 0 && planCountRow && planCountRow.count > 0) {
+      logger.info('Database already seeded with telecom records. Skipping.');
+      return;
+    }
   }
 
-  logger.info('Seeding fresh demo data...');
+  logger.info('Seeding fresh telecom demo data...');
 
   const passwordHash = await bcrypt.hash('password123', 10);
   const adminPasswordHash = await bcrypt.hash('admin123', 10);
@@ -22,498 +26,630 @@ export async function seedDatabase(): Promise<void> {
 
   const now = new Date().toISOString();
 
-  const insertUser = db.prepare(`
-    INSERT INTO users (user_id, email, password_hash, role, created_at)
-    VALUES (?, ?, ?, ?, ?)
-  `);
-
-  const insertCustomer = db.prepare(`
-    INSERT INTO customer_profiles (
-      customer_id, user_id, first_name, last_name, email, phone, date_of_birth,
-      address, city, state, country, postal_code, customer_status,
-      account_created_at, notes, tags
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `);
-
-  const insertAdmin = db.prepare(`
-    INSERT INTO admin_users (admin_id, user_id, name, department, status, created_at)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `);
-
-  const insertAgent = db.prepare(`
-    INSERT INTO support_agents (agent_id, user_id, name, email, role, status, department, created_at, last_active_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `);
-
-  const insertProduct = db.prepare(`
-    INSERT INTO products (
-      product_id, name, sku, description, category, price, currency,
-      stock_quantity, availability_status, specifications,
-      warranty_information, return_policy, created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `);
-
-  const insertOrder = db.prepare(`
-    INSERT INTO orders (
-      order_id, customer_id, order_date, total_amount, currency,
-      payment_status, order_status, shipping_address, estimated_delivery_date,
-      tracking_number, created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `);
-
-  const insertOrderItem = db.prepare(`
-    INSERT INTO order_items (
-      order_item_id, order_id, product_id, product_name, quantity, unit_price, total_price
-    ) VALUES (?, ?, ?, ?, ?, ?, ?)
-  `);
-
-  const insertTicket = db.prepare(`
-    INSERT INTO support_tickets (
-      ticket_id, customer_id, conversation_id, subject, description, category,
-      priority, status, assigned_agent_id, escalation_reason, internal_notes,
-      created_at, updated_at, resolved_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `);
-
-  const insertKB = db.prepare(`
-    INSERT INTO knowledge_documents (
-      document_id, title, content, category, tags, source, status, created_by, created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `);
-
-  const insertFAQ = db.prepare(`
-    INSERT INTO faqs (
-      faq_id, question, answer, category, tags, status, created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-  `);
-
-  const insertPrompt = db.prepare(`
-    INSERT INTO ai_prompts (
-      prompt_id, version, content, status, created_by, created_at
-    ) VALUES (?, ?, ?, ?, ?, ?)
-  `);
-
-  const insertConfig = db.prepare(`
-    INSERT INTO ai_configs (
-      model, system_instructions, temperature, max_tokens, rag_top_k,
-      rag_similarity_threshold, max_conversation_history, escalation_threshold,
-      ai_enabled, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `);
-
-  const insertAudit = db.prepare(`
-    INSERT INTO audit_logs (
-      log_id, actor_id, actor_type, action, entity_type, entity_id, metadata, timestamp
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-  `);
-
   runTransaction(db, () => {
-    // 1. Admin
+    // 1. Users
+    const insertUser = db.prepare(`
+      INSERT INTO users (user_id, email, password_hash, role, created_at)
+      VALUES (?, ?, ?, ?, ?)
+    `);
+
     insertUser.run('usr-admin-1', 'admin@company.com', adminPasswordHash, 'ADMIN', now);
-    insertAdmin.run('adm-1', 'usr-admin-1', 'Alex Mercer (Admin)', 'Operations & IT', 'ACTIVE', now);
-
-    // 2. Support Agent
-    insertUser.run('usr-agent-1', 'sarah.agent@company.com', agentPasswordHash, 'SUPPORT_AGENT', now);
-    insertAgent.run('agt-1', 'usr-agent-1', 'Sarah Jenkins', 'sarah.agent@company.com', 'SUPPORT_AGENT', 'ACTIVE', 'Technical Tier 2', now, now);
-
-    // 3. Customer Alice
+    insertUser.run('usr-agent-1', 'sarah@company.com', agentPasswordHash, 'SUPPORT_AGENT', now);
     insertUser.run('usr-cust-1', 'alice@example.com', passwordHash, 'CUSTOMER', now);
+    insertUser.run('usr-cust-2', 'bob@example.com', passwordHash, 'CUSTOMER', now);
+
+    // 2. Customer Profiles (Subscribers)
+    const insertCustomer = db.prepare(`
+      INSERT INTO customer_profiles (
+        customer_id, user_id, first_name, last_name, email, phone, phone_number,
+        alternate_number, date_of_birth, address, city, state, country, postal_code,
+        pincode, customer_status, customer_since, account_created_at, notes, tags
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
     insertCustomer.run(
       'cust-1',
       'usr-cust-1',
       'Alice',
-      'Johnson',
+      'Sharma',
       'alice@example.com',
-      '+1 (555) 234-5678',
-      '1992-04-15',
-      '742 Evergreen Terrace',
-      'Springfield',
-      'OR',
-      'USA',
-      '97477',
+      '+91 98765 43210',
+      '+91 98765 43210',
+      '+91 98765 99999',
+      '1992-05-14',
+      'Flat 402, Sea Breeze Apts, Bandra West',
+      'Mumbai',
+      'Maharashtra',
+      'India',
+      '400050',
+      '400050',
       'ACTIVE',
+      '2022-01-15',
       now,
-      'High value tech enthusiast customer. Prefers email updates.',
-      JSON.stringify(['VIP', 'Early Adopter'])
+      'High-value 5G unlimited subscriber with eSIM',
+      JSON.stringify(['5G_PREMIUM', 'ESIM_USER', 'HIGH_VALUE'])
     );
 
-    // 4. Customer Bob
-    insertUser.run('usr-cust-2', 'bob@example.com', passwordHash, 'CUSTOMER', now);
     insertCustomer.run(
       'cust-2',
       'usr-cust-2',
       'Bob',
-      'Smith',
+      'Patel',
       'bob@example.com',
-      '+1 (555) 876-5432',
+      '+91 98765 87654',
+      '+91 98765 87654',
+      null,
       '1988-11-20',
-      '123 Maple Street',
-      'Austin',
-      'TX',
-      'USA',
-      '78701',
+      '12th Cross, T Nagar',
+      'Chennai',
+      'Tamil Nadu',
+      'India',
+      '600017',
+      '600017',
+      'ACTIVE',
+      '2023-04-10',
+      now,
+      'Prepaid subscriber in Chennai experiencing tower congestion',
+      JSON.stringify(['PREPAID', 'PHYSICAL_SIM'])
+    );
+
+    // 3. Admin & Agent Profiles
+    db.prepare(`
+      INSERT INTO admin_users (admin_id, user_id, name, department, status, created_at)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run('adm-1', 'usr-admin-1', 'System Administrator', 'Network Operations & AI Platform', 'ACTIVE', now);
+
+    db.prepare(`
+      INSERT INTO support_agents (agent_id, user_id, name, email, role, status, department, created_at, last_active_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run('agt-1', 'usr-agent-1', 'Sarah Jenkins', 'sarah@company.com', 'SUPPORT_AGENT', 'ACTIVE', 'Priority Network & Technical Desk', now, now);
+
+    // 4. Telecom Plans
+    const insertPlan = db.prepare(`
+      INSERT INTO telecom_plans (
+        plan_id, name, description, price, currency, validity_days, data_allowance,
+        voice_allowance, sms_allowance, network_type, is_5g, roaming_available, category, status, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    insertPlan.run(
+      'plan-5g-799',
+      'Unlimited 5G 799',
+      'Best-seller 5G plan: 2GB daily 4G data + Unlimited True 5G data with unlimited national voice calling.',
+      799,
+      'INR',
+      56,
+      '2GB/day + Unlimited True 5G',
+      'Unlimited national calling',
+      '100 SMS/day',
+      '5G',
+      1,
+      1,
+      'UNLIMITED_5G',
       'ACTIVE',
       now,
-      'Standard customer account.',
-      JSON.stringify(['Retail'])
-    );
-
-    // 5. Products
-    insertProduct.run(
-      'prod-101',
-      'Apex Ultrabook 14 Pro',
-      'APEX-NB-14P',
-      'High performance 14-inch laptop with OLED display, 32GB RAM, 1TB NVMe SSD, and 12-core processor.',
-      'Laptops',
-      1299.99,
-      'USD',
-      42,
-      'IN_STOCK',
-      JSON.stringify({ display: '14" 2.8K 120Hz OLED', ram: '32GB LPDDR5X', storage: '1TB NVMe Gen4', weight: '1.25kg' }),
-      'Includes 2-Year Limited Manufacturer Hardware Warranty covering screen defects, motherboard, and internal battery.',
-      '30-Day Hassle-Free Returns. Full refund if unopened or returned with all original accessories in like-new condition.',
-      now,
       now
     );
 
-    insertProduct.run(
-      'prod-102',
-      'ProPulse Wireless ANC Headphones',
-      'PROP-HP-ANC',
-      'Premium over-ear wireless headphones with active noise cancellation, 40-hour battery life, and spatial audio.',
-      'Audio',
-      249.99,
-      'USD',
-      115,
-      'IN_STOCK',
-      JSON.stringify({ battery: '40 Hours ANC on', connectivity: 'Bluetooth 5.3 + 3.5mm AUX', codec: 'LDAC, AAC, SBC' }),
-      '1-Year Manufacturer Replacement Warranty against driver distortion and battery degradation.',
-      '30-Day Return Policy for sanitary unopened items or defective units.',
-      now,
-      now
-    );
-
-    insertProduct.run(
-      'prod-103',
-      'Titan Ergonomic Executive Chair',
-      'TITAN-CH-01',
-      'Full mesh ergonomic office chair with adjustable 4D armrests, dynamic lumbar support, and tilt lock.',
-      'Furniture',
-      450.00,
-      'USD',
+    insertPlan.run(
+      'plan-prep-299',
+      'Prepaid Super 299',
+      'Popular monthly prepaid plan: 1.5GB daily data with unlimited voice and 100 SMS/day.',
+      299,
+      'INR',
       28,
-      'IN_STOCK',
-      JSON.stringify({ material: 'Breathable KR-Mesh', maxWeight: '150kg / 330lbs', warrantyYears: 5 }),
-      '5-Year Comprehensive Frame and Gas Lift Cylinder Warranty.',
-      '14-Day In-Home Trial. Customer is responsible for disassembly and return shipping carton.',
+      '1.5GB/day',
+      'Unlimited national calling',
+      '100 SMS/day',
+      '5G',
+      1,
+      0,
+      'POPULAR_MONTHLY',
+      'ACTIVE',
       now,
       now
     );
 
-    insertProduct.run(
-      'prod-104',
-      'Horizon 34" Curved UltraWide Gaming Monitor',
-      'HOR-MON-34C',
-      '34-inch 165Hz WQHD 3440x1440 curved IPS monitor with HDR400, USB-C 90W PD, and dual HDMI 2.1.',
-      'Monitors',
-      799.00,
-      'USD',
-      14,
-      'IN_STOCK',
-      JSON.stringify({ panel: 'Fast IPS Curved 1900R', refreshRate: '165Hz', colorGamut: '98% DCI-P3' }),
-      '3-Year Zero-Bright-Pixel Warranty and rapid advance replacement.',
-      '30-Day Return Policy with undamaged original foam packing.',
+    insertPlan.run(
+      'plan-hero-2999',
+      'Annual Hero 2999',
+      '365-day annual pack: 2.5GB/day high speed data + Unlimited True 5G data, premium OTT bundle, and VIP support.',
+      2999,
+      'INR',
+      365,
+      '2.5GB/day + Unlimited True 5G',
+      'Unlimited national calling',
+      '100 SMS/day',
+      '5G',
+      1,
+      1,
+      'ANNUAL',
+      'ACTIVE',
       now,
       now
     );
 
-    insertProduct.run(
-      'prod-105',
-      'Quantum USB-C 10-in-1 Multiport Dock',
-      'QNT-DOCK-10',
-      'Aluminum hub supporting Dual 4K@60Hz HDMI, Gigabit Ethernet, 100W PD charging, SD/TF readers, and 3x USB 3.2.',
-      'Accessories',
-      89.50,
-      'USD',
-      195,
-      'IN_STOCK',
-      JSON.stringify({ ports: 'Dual HDMI 2.0, RJ45 1Gbps, 100W PD In, 3x USB-A 3.2, SD 4.0' }),
-      '1-Year Standard Replacement Warranty.',
-      '30-Day Return Policy.',
+    insertPlan.run(
+      'plan-roam-uae-899',
+      'International Roaming UAE 899',
+      '7-day international roaming pack for Dubai & UAE: 2GB data, 100 mins outgoing calls, free incoming calls.',
+      899,
+      'INR',
+      7,
+      '2GB High Speed Data',
+      '100 Mins Outgoing, Free Incoming',
+      '50 SMS',
+      '5G',
+      1,
+      1,
+      'INTERNATIONAL_ROAMING',
+      'ACTIVE',
       now,
       now
     );
 
-    // 6. Orders
-    insertOrder.run(
-      'ord-1001',
+    insertPlan.run(
+      'plan-roam-global-2499',
+      'Global Roaming Explorer 2499',
+      '30-day global international roaming for 150+ countries (USA, UK, Europe, Asia, UAE): 5GB data, 200 outgoing mins, free incoming.',
+      2499,
+      'INR',
+      30,
+      '5GB Global Data',
+      '200 Mins Outgoing, Free Incoming',
+      '100 SMS',
+      '5G',
+      1,
+      1,
+      'INTERNATIONAL_ROAMING',
+      'ACTIVE',
+      now,
+      now
+    );
+
+    insertPlan.run(
+      'plan-booster-49',
+      'Data Booster 49',
+      'Instant 6GB high-speed 4G/5G data booster pack valid until midnight.',
+      49,
+      'INR',
+      1,
+      '6GB Instant High Speed Data',
+      'N/A (Data Only)',
+      'N/A',
+      '5G',
+      1,
+      0,
+      'DATA_ADDON',
+      'ACTIVE',
+      now,
+      now
+    );
+
+    // 5. Subscriptions
+    const insertSub = db.prepare(`
+      INSERT INTO subscriptions (
+        subscription_id, customer_id, plan_id, mobile_number, activation_date, expiry_date, status, auto_renew, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    insertSub.run(
+      'sub-1001',
       'cust-1',
-      new Date(Date.now() - 14 * 86400000).toISOString(),
-      1299.99,
-      'USD',
-      'PAID',
-      'DELIVERED',
-      '742 Evergreen Terrace, Springfield, OR 97477',
-      new Date(Date.now() - 10 * 86400000).toISOString(),
-      'TRK-FEDEX-987261',
+      'plan-5g-799',
+      '+91 98765 43210',
+      '2026-09-15T00:00:00.000Z',
+      '2026-11-10T23:59:59.000Z',
+      'ACTIVE',
+      1,
       now,
       now
     );
-    insertOrderItem.run('item-101', 'ord-1001', 'prod-101', 'Apex Ultrabook 14 Pro', 1, 1299.99, 1299.99);
 
-    insertOrder.run(
-      'ord-1002',
-      'cust-1',
-      new Date(Date.now() - 2 * 86400000).toISOString(),
-      339.49,
-      'USD',
-      'PAID',
-      'OUT_FOR_DELIVERY',
-      '742 Evergreen Terrace, Springfield, OR 97477',
-      new Date(Date.now() + 1 * 86400000).toISOString(),
-      'TRK-UPS-443219',
-      now,
-      now
-    );
-    insertOrderItem.run('item-102', 'ord-1002', 'prod-102', 'ProPulse Wireless ANC Headphones', 1, 249.99, 249.99);
-    insertOrderItem.run('item-103', 'ord-1002', 'prod-105', 'Quantum USB-C 10-in-1 Multiport Dock', 1, 89.50, 89.50);
-
-    insertOrder.run(
-      'ord-1003',
+    insertSub.run(
+      'sub-1002',
       'cust-2',
-      new Date(Date.now() - 1 * 86400000).toISOString(),
-      450.00,
-      'USD',
-      'PAID',
-      'PROCESSING',
-      '123 Maple Street, Austin, TX 78701',
-      new Date(Date.now() + 4 * 86400000).toISOString(),
-      'TRK-PENDING-ASSIGN',
+      'plan-prep-299',
+      '+91 98765 87654',
+      '2026-09-20T00:00:00.000Z',
+      '2026-10-18T23:59:59.000Z',
+      'ACTIVE',
+      0,
       now,
       now
     );
-    insertOrderItem.run('item-104', 'ord-1003', 'prod-103', 'Titan Ergonomic Executive Chair', 1, 450.00, 450.00);
 
-    // 7. Support Tickets
-    insertTicket.run(
-      'tik-201',
+    // 6. Subscriber Live Usage
+    const insertUsage = db.prepare(`
+      INSERT INTO telecom_usage (
+        usage_id, customer_id, mobile_number, data_used_gb, data_remaining_gb, voice_used_mins, voice_remaining_mins, sms_used, sms_remaining, period_start, period_end, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    // Alice has 7.4 GB remaining of her high-speed quota (healthy)
+    insertUsage.run(
+      'usg-1001',
       'cust-1',
-      null,
-      'Ultrabook multi-monitor dock setup assistance',
-      'Customer wanted to verify if Quantum USB-C Dock supports dual displays with the Apex Ultrabook.',
-      'PRODUCT_INQUIRY',
+      '+91 98765 43210',
+      2.6,
+      7.4,
+      340,
+      -1,
+      12,
+      88,
+      '2026-10-01T00:00:00.000Z',
+      '2026-10-31T23:59:59.000Z',
+      now
+    );
+
+    // Bob has only 0.1 GB remaining (almost exhausted, explanation for slow speeds)
+    insertUsage.run(
+      'usg-1002',
+      'cust-2',
+      '+91 98765 87654',
+      1.4,
+      0.1,
+      520,
+      -1,
+      45,
+      55,
+      '2026-10-01T00:00:00.000Z',
+      '2026-10-31T23:59:59.000Z',
+      now
+    );
+
+    // 7. Recharges
+    const insertRecharge = db.prepare(`
+      INSERT INTO recharges (
+        recharge_id, customer_id, mobile_number, plan_id, amount, payment_method, transaction_id, status, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    insertRecharge.run(
+      'rch-2001',
+      'cust-1',
+      '+91 98765 43210',
+      'plan-5g-799',
+      799,
+      'UPI_GPAY',
+      'TXN-UPI-98761234',
+      'SUCCESS',
+      '2026-09-15T10:30:00.000Z'
+    );
+
+    insertRecharge.run(
+      'rch-2002',
+      'cust-1',
+      '+91 98765 43210',
+      'plan-booster-49',
+      49,
+      'CREDIT_CARD',
+      'TXN-CC-88273611',
+      'SUCCESS',
+      '2026-10-02T14:15:00.000Z'
+    );
+
+    insertRecharge.run(
+      'rch-2003',
+      'cust-2',
+      '+91 98765 87654',
+      'plan-prep-299',
+      299,
+      'UPI_PHONEPE',
+      'TXN-UPI-77162534',
+      'SUCCESS',
+      '2026-09-20T18:00:00.000Z'
+    );
+
+    // 8. Postpaid Bills & Payments
+    const insertBill = db.prepare(`
+      INSERT INTO bills (
+        bill_id, customer_id, mobile_number, billing_period, amount, due_date, status, breakdown_json, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    insertBill.run(
+      'bill-3001',
+      'cust-1',
+      '+91 98765 43210',
+      'Sep 2026',
+      799,
+      '2026-10-15',
+      'PAID',
+      JSON.stringify({ planCharges: 677.12, gst18Percent: 121.88, discount: 0, total: 799 }),
+      '2026-10-01T00:00:00.000Z'
+    );
+
+    insertBill.run(
+      'bill-3002',
+      'cust-1',
+      '+91 98765 43210',
+      'Aug 2026',
+      799,
+      '2026-09-15',
+      'PAID',
+      JSON.stringify({ planCharges: 677.12, gst18Percent: 121.88, discount: 0, total: 799 }),
+      '2026-09-01T00:00:00.000Z'
+    );
+
+    // 9. SIM Cards
+    const insertSim = db.prepare(`
+      INSERT INTO sim_cards (
+        sim_id, customer_id, mobile_number, sim_type, iccid, imsi, status, activated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    insertSim.run(
+      'sim-4001',
+      'cust-1',
+      '+91 98765 43210',
+      'ESIM',
+      '89910012345678901234',
+      '404450123456789',
+      'ACTIVE',
+      '2022-01-15T12:00:00.000Z'
+    );
+
+    insertSim.run(
+      'sim-4002',
+      'cust-2',
+      '+91 98765 87654',
+      'PHYSICAL',
+      '89910098765432109876',
+      '404450987654321',
+      'ACTIVE',
+      '2023-04-10T09:30:00.000Z'
+    );
+
+    // 10. Network Outages
+    const insertOutage = db.prepare(`
+      INSERT INTO network_outages (
+        outage_id, region, city, affected_service, network_type, severity, status, start_time, estimated_resolution, description, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    insertOutage.run(
+      'OUT-2026-CH01',
+      'Tamil Nadu',
+      'Chennai',
+      '5G Mobile Data & High-Speed Internet',
+      '5G',
+      'MAJOR',
+      'IN_PROGRESS',
+      '2026-10-08T06:00:00.000Z',
+      'Today, 8:00 PM IST',
+      'Subsea cable landing station optical fiber cut near Guindy substation causing packet loss and degraded 5G mobile broadband speeds across Chennai south.',
+      now,
+      now
+    );
+
+    insertOutage.run(
+      'OUT-2026-PU02',
+      'Maharashtra',
+      'Pune',
+      'VoLTE Voice Calling',
+      '4G',
+      'MINOR',
+      'INVESTIGATING',
+      '2026-10-08T09:15:00.000Z',
+      'Today, 6:00 PM IST',
+      'Scheduled cell tower maintenance at Hinjewadi Phase 3. Voice calls may momentarily fall back to 3G/2G.',
+      now,
+      now
+    );
+
+    // 11. Support Tickets
+    const insertTicket = db.prepare(`
+      INSERT INTO support_tickets (
+        ticket_id, customer_id, subject, description, category, priority, status, assigned_agent_id, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    insertTicket.run(
+      'TCK-101',
+      'cust-1',
+      'Inquiry about International Roaming activation in Dubai',
+      'Customer travelling to UAE on Friday and requesting confirmation of roaming pack coverage.',
+      'ROAMING',
       'LOW',
       'RESOLVED',
       'agt-1',
-      null,
-      'Provided connection diagram. Customer confirmed dual 4K monitors worked via Thunderbolt.',
-      new Date(Date.now() - 7 * 86400000).toISOString(),
-      new Date(Date.now() - 6 * 86400000).toISOString(),
-      new Date(Date.now() - 6 * 86400000).toISOString()
+      '2026-10-05T11:00:00.000Z',
+      now
     );
 
     insertTicket.run(
-      'tik-202',
-      'cust-1',
-      null,
-      'Package delivery time inquiry for ORD-1002',
-      'Customer requested delivery time window estimation for today.',
-      'SHIPPING',
-      'MEDIUM',
-      'OPEN',
+      'TCK-102',
+      'cust-2',
+      'Extremely slow internet and buffering in T Nagar Chennai',
+      'Customer reports speed test below 1 Mbps on 5G device.',
+      'NETWORK',
+      'HIGH',
+      'IN_PROGRESS',
       'agt-1',
-      'Customer requested real-time human agent confirmation of courier window',
-      'Courier scheduled delivery between 2:00 PM and 5:30 PM PST.',
-      new Date(Date.now() - 4 * 3600000).toISOString(),
-      now,
-      null
+      '2026-10-08T08:30:00.000Z',
+      now
     );
 
-    // 8. Knowledge Documents
-    insertKB.run(
-      'doc-kb-1',
-      'Global Returns & Refund Policy',
-      `Our goal is 100% customer satisfaction.
-1. Eligibility: Products can be returned within 30 days of confirmed delivery date.
-2. Condition: Items must include original packaging, manuals, accessories, and be free of accidental physical damage.
-3. Process: Customers initiate a return via the customer portal or support agent. A pre-paid printable return shipping label will be generated.
-4. Refunds: Once the returned item is inspected at our fulfillment center (usually within 48 hours of receipt), the refund is processed back to the original payment method within 3-5 business days.
-5. Exceptions: Opened consumable items, software licenses, or customized items cannot be refunded unless defective upon arrival.`,
-      'Policies',
-      JSON.stringify(['return', 'refund', 'policy', 'money back']),
-      'MANUAL',
-      'PUBLISHED',
-      'Alex Mercer',
+    // 12. Knowledge Documents (Telecom Guides)
+    const insertDoc = db.prepare(`
+      INSERT INTO knowledge_documents (
+        document_id, title, content, category, tags, source, status, created_by, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, 'MANUAL', 'PUBLISHED', 'admin@company.com', ?, ?)
+    `);
+
+    insertDoc.run(
+      'doc-5g-troubleshooting',
+      '5G Network Troubleshooting & True 5G SA Setup Guide',
+      `Comprehensive guide for troubleshooting mobile network and 5G connectivity issues:
+1. Verify 5G SA Compatibility: Ensure device supports 5G bands n28, n78, n258. Check device Settings -> Mobile Network -> Network Mode -> Select "5G/4G/3G Auto".
+2. Check APN Settings: APN Name should be set to "telecom.net" with APN Protocol IPv4/IPv6.
+3. Daily Data Limit Check: Once daily data quota (e.g. 1.5GB/day or 2GB/day) is exhausted, speed drops to 64 Kbps unless an active Data Booster add-on is applied.
+4. Active Outages: Check city-specific fiber cuts or scheduled tower maintenance. If an outage is active in your area, technicians are dispatched for restoration.
+5. Quick Reset: Toggle Airplane Mode ON for 10 seconds and turn it OFF. Restart device if signal bars do not refresh.`,
+      'Network',
+      JSON.stringify(['5G', 'SPEED', 'TROUBLESHOOTING', 'APN', 'NETWORK']),
       now,
       now
     );
 
-    insertKB.run(
-      'doc-kb-2',
-      'Warranty Coverage & Repair Procedures',
-      `All hardware products sold include standard manufacturer warranty coverage:
-1. Warranty Periods:
-   - Apex Laptops: 2-Year Limited Hardware Warranty.
-   - ProPulse Audio: 1-Year Limited Replacement Warranty.
-   - Titan Chairs: 5-Year Structural Frame & Cylinder Warranty.
-   - Horizon Displays: 3-Year Zero-Bright-Pixel Warranty.
-   - Accessories & Docks: 1-Year Standard Warranty.
-2. What is covered: Manufacturing defects, premature battery degradation (under 80% capacity within 12 months), display dead pixels, motherboard hardware failure.
-3. What is NOT covered: Water damage, cracked screens from drops, unauthorized third-party repairs.
-4. Repair turnaround: Average turnaround time is 5 business days after receiving the device at our regional service center.`,
-      'Warranty',
-      JSON.stringify(['warranty', 'repair', 'hardware', 'broken', 'defect']),
-      'MANUAL',
-      'PUBLISHED',
-      'Alex Mercer',
+    insertDoc.run(
+      'doc-esim-guide',
+      'eSIM Activation, Setup & Transfer Procedure',
+      `Step-by-step instructions for activating or transferring an eSIM:
+1. Eligibility: Supported on Apple iPhone XR or newer, Samsung Galaxy S20+, Google Pixel 4a+.
+2. Request eSIM QR: In the Customer Portal under "My SIM", request an eSIM transfer. An encrypted QR code is delivered to your verified email address.
+3. iOS Setup: Go to Settings -> Mobile Service -> Add eSIM -> Use QR Code -> Scan the provided QR code with device camera.
+4. Android Setup: Go to Settings -> Network & Internet -> SIMs -> Download a SIM -> Scan QR code.
+5. Verification: Do not delete your old physical SIM until the eSIM shows active signal bars. EID authentication takes approximately 2 hours.
+6. Lost Device Emergency: If your eSIM device is lost, immediately use the "Block SIM" tool in the portal to prevent unauthorized OTP verification.`,
+      'SIM/eSIM',
+      JSON.stringify(['ESIM', 'ACTIVATION', 'QR_CODE', 'SIM_REPLACEMENT']),
       now,
       now
     );
 
-    insertKB.run(
-      'doc-kb-3',
-      'Shipping, Delivery & Tracking Guidelines',
-      `Information regarding our logistics and carrier partners:
-1. Carriers: Orders are dispatched via FedEx, UPS, or DHL Express depending on destination and package dimensions.
-2. Delivery Tiers:
-   - Standard Ground: 3 to 5 business days. Free on orders over $50.
-   - Expedited 2-Day: 2 business days guaranteed. $15 flat rate.
-   - Next-Day Priority: Next business day delivery if ordered before 2:00 PM EST.
-3. Tracking: Tracking numbers are automatically attached to the order within 24 hours of dispatch. Customers can view real-time tracking numbers directly in 'My Orders' or ask the AI agent.
-4. Address Changes: Address updates can only be made while the order status is 'CONFIRMED' or 'PROCESSING'. Once marked 'SHIPPED', reroutes must be requested directly with the carrier or escalated to a human agent.`,
-      'Shipping',
-      JSON.stringify(['shipping', 'delivery', 'tracking', 'fedex', 'ups', 'carrier']),
-      'MANUAL',
-      'PUBLISHED',
-      'Alex Mercer',
+    insertDoc.run(
+      'doc-roaming-guide',
+      'International & Domestic Roaming Usage Policies',
+      `Telecom roaming policies and international connectivity rules:
+1. Domestic Roaming: 100% Free across all states and union territories in India. No extra charge for data, incoming calls, or SMS.
+2. International Roaming: To avoid standard pay-as-you-go rates, activate an International Roaming Pack before boarding your flight.
+3. Popular Packs: UAE 899 Pack (7 days, 2GB, 100 Mins) and Global Explorer 2499 Pack (30 days, 5GB, 200 Mins, 150+ countries).
+4. On Arrival: Ensure "Data Roaming" is toggled ON under phone Cellular settings. Your phone will automatically register with partner tier-1 telco networks.`,
+      'Roaming',
+      JSON.stringify(['ROAMING', 'INTERNATIONAL', 'DUBAI', 'TRAVEL']),
       now,
       now
     );
 
-    insertKB.run(
-      'doc-kb-4',
-      'Apex Ultrabook 14 Pro Troubleshooting & Dock Setup',
-      `Quick troubleshooting steps for common technical inquiries:
-1. External Displays Not Detected:
-   - Ensure you are connecting via the Thunderbolt 4 port on the left side of the Apex Ultrabook.
-   - Update graphics drivers from the preinstalled Support Center app or AMD/Intel software.
-   - If using the Quantum 10-in-1 Dock, connect the 100W PD power adapter directly to the dock's PD-IN port.
-2. Battery Not Charging:
-   - Check that the USB-C charger is delivering at least 65W.
-   - Perform an EC (Embedded Controller) reset: Turn off laptop, hold the Power button for 20 seconds, release, then turn back on.
-3. Audio Troubleshooting:
-   - Toggle audio output device in the system tray. If using ProPulse headphones via Bluetooth, confirm AAC codec support is enabled in device settings.`,
-      'Troubleshooting',
-      JSON.stringify(['laptop', 'troubleshooting', 'dock', 'display', 'battery', 'charge']),
-      'MANUAL',
-      'PUBLISHED',
-      'Alex Mercer',
+    insertDoc.run(
+      'doc-recharge-billing',
+      'Recharge Cycles, Bill Payments & Refund Policy',
+      `Understanding prepaid validity, bill breakdowns, and payment policies:
+1. Plan Validity: 28 days, 56 days, 84 days, or 365 days from the exact timestamp of successful recharge.
+2. Advance Recharges: You can recharge in advance. Queued plans automatically activate the moment your current active plan expires without losing data.
+3. Failed Transaction Resolution: If payment was debited via UPI or Credit Card but recharge was not credited, payment gateway auto-reverses funds within 24 to 48 hours.
+4. Postpaid Bills: Invoiced on the 1st of every month with a 15-day grace payment period before late fees.`,
+      'Billing',
+      JSON.stringify(['RECHARGE', 'BILLING', 'PAYMENT', 'REFUND', 'VALIDITY']),
       now,
       now
     );
 
-    // 9. FAQs
-    insertFAQ.run(
+    // 13. Telecom FAQs
+    const insertFaq = db.prepare(`
+      INSERT INTO faqs (faq_id, question, answer, category, tags, status, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, 'PUBLISHED', ?, ?)
+    `);
+
+    insertFaq.run(
       'faq-1',
-      'How do I return an item and get a refund?',
-      'You can return any physical product within 30 days of delivery. Make sure the item is in like-new condition with all original packaging and accessories. Contact support or use our automated portal to generate a prepaid shipping label. Refunds are processed within 3-5 business days after inspection.',
-      'Returns & Refunds',
-      JSON.stringify(['return', 'refund', '30 days']),
-      'PUBLISHED',
+      'Why is my internet slow or 5G not showing up?',
+      'Slow speeds typically occur if: (1) your daily high-speed data quota has been reached (speeds reset daily at midnight), (2) 5G is not enabled in phone settings (switch Network Mode to 5G Auto), or (3) there is an active network outage or maintenance in your city. Check the "My Usage" tab to verify remaining data.',
+      'Network',
+      JSON.stringify(['5G', 'SLOW_INTERNET', 'NETWORK']),
       now,
       now
     );
 
-    insertFAQ.run(
+    insertFaq.run(
       'faq-2',
-      'How can I track my package?',
-      'Navigate to "My Orders" in your customer dashboard, or ask our AI Support Agent "Where is my order?". You will find your tracking number and current transit status immediately.',
-      'Shipping',
-      JSON.stringify(['track', 'shipping', 'order status']),
-      'PUBLISHED',
+      'How do I check my remaining data and plan expiry?',
+      'You can ask the AI Support Agent "How much data do I have left?" or view your real-time meters in the "My Usage" dashboard tab.',
+      'Plans',
+      JSON.stringify(['DATA_USAGE', 'BALANCE', 'PLAN_EXPIRY']),
       now,
       now
     );
 
-    insertFAQ.run(
+    insertFaq.run(
       'faq-3',
-      'What warranty comes with my purchase?',
-      'Laptops feature a 2-year warranty, audio products 1-year, monitors 3-year with zero bright pixel guarantee, chairs 5-year frame warranty, and accessories 1-year. Warranty covers manufacturing and hardware defects.',
-      'Warranty',
-      JSON.stringify(['warranty', 'guarantee', 'repair']),
-      'PUBLISHED',
+      'How can I switch my physical SIM card to an eSIM?',
+      'Navigate to the "My SIM" section on the Customer Portal, select "Convert to eSIM", and verify your device EID. You will receive an activation QR code on your registered email address.',
+      'SIM/eSIM',
+      JSON.stringify(['ESIM', 'CONVERT_SIM', 'QR_CODE']),
       now,
       now
     );
 
-    insertFAQ.run(
+    insertFaq.run(
       'faq-4',
-      'Can I speak with a human support agent?',
-      'Yes, absolutely! At any point during your conversation, you can ask for a human representative or click "Request Human Support". Our system will immediately escalate your issue and notify an available support specialist.',
-      'Support',
-      JSON.stringify(['human', 'agent', 'representative', 'escalate']),
-      'PUBLISHED',
+      'What happens if my recharge money was deducted but not activated?',
+      'If your account was debited but plan didn\'t update, check your transaction ID under "Recharges". Our payment gateway reconciles pending bank statuses within 15 minutes. If still unresolved, our AI or human agent can open an immediate billing ticket.',
+      'Recharge',
+      JSON.stringify(['FAILED_RECHARGE', 'UPI_DEBITED', 'PAYMENT_PENDING']),
       now,
       now
     );
 
-    insertFAQ.run(
+    insertFaq.run(
       'faq-5',
-      'Can I change my delivery address after placing an order?',
-      'If your order is in PENDING or PROCESSING status, an agent or admin can update the shipping address for you. Once an order is SHIPPED, please request a carrier hold or ask an agent to submit a carrier intercept.',
-      'Orders',
-      JSON.stringify(['address', 'change order', 'delivery']),
-      'PUBLISHED',
+      'Is 5G unlimited really unlimited?',
+      'Yes! True 5G data is 100% unlimited and free on all eligible 5G plans (such as the Unlimited 5G 799 or Annual 2999 packs) in areas with 5G network coverage.',
+      '5G',
+      JSON.stringify(['TRUE_5G', 'UNLIMITED_DATA', '5G_OFFER']),
       now,
       now
     );
 
-    // 10. AI System Prompt
-    const systemPromptContent = `You are the official AI Customer Support Specialist for our technology and hardware store.
-Your goal is to provide exceptional, polite, accurate, and efficient support to customers.
+    // 14. AI System Configuration & System Prompt
+    const telecomSystemPrompt = `You are the Telecom AI Customer Support & Service Management Agent for Telecom One.
+Your mission is to provide fast, reliable, accurate, and empathetic assistance to subscribers regarding:
+- Mobile Plans (Prepaid, Postpaid, Unlimited 5G, Annual Packs, Data Boosters)
+- Recharges (Balance, transactions, recharging numbers)
+- Data, Voice & SMS Usage (Daily limits, remaining quota, reset times)
+- Network Troubleshooting (Slow data, no signal, call drops, 5G SA configuration)
+- Regional Network Outages (Checking active fiber cuts, tower incidents, and restoration ETAs)
+- SIM & eSIM Management (eSIM setup, QR codes, blocking lost SIMs)
+- Postpaid Bills & Payments
+- International & Domestic Roaming
 
-CORE RULES:
-1. ONLY access and discuss data for the current authenticated customer. Never disclose information about other customers.
-2. ALWAYS use your provided tools to look up customer orders, product specs, warranty details, knowledge base articles, or support tickets.
-3. NEVER fabricate or hallucinate order numbers, tracking numbers, refund amounts, or policy terms. If you don't know or cannot verify, clearly state so.
-4. SEARCH FAQs AND KNOWLEDGE BASE first before providing company policy answers (returns, shipping, warranties).
-5. If a customer expresses strong frustration, dissatisfaction, or repeatedly faces issues, empathetically acknowledge their feelings and offer to escalate to a human agent using the escalate_to_human tool.
-6. If the customer explicitly requests a human agent or representative, IMMEDIATELY call the escalate_to_human tool.
-7. If an action requires human review (such as approving an exceptional refund or changing an in-transit order address), create a support ticket and inform the customer that a human agent will assist them.
-8. Maintain a professional, concise, empathetic, and reassuring tone.`;
+CRITICAL RULES:
+1. ONLY access data belonging to the authenticated customer. NEVER reveal another customer's mobile number, usage, or personal records.
+2. NEVER fabricate or hallucinate plans, prices, usage balances, recharge status, or outage information. Always call the corresponding tool.
+3. For network issues, follow the standard troubleshooting workflow:
+   a. Check customer's active plan and data balance (verify if high speed daily quota is exhausted).
+   b. Check if there is an active network outage in customer's city.
+   c. If an outage exists, explain the outage details, affected service, and estimated resolution time empathetically.
+   d. If no outage exists, suggest device APN reset and Airplane mode toggle.
+   e. Offer to raise a high-priority network ticket if issue persists.
+4. For frustrated customers or when explicitly asked for a human representative, escalate immediately using the escalate_to_human tool.`;
 
-    insertPrompt.run('prompt-v1', 1, systemPromptContent, 'ACTIVE', 'Alex Mercer', now);
+    db.prepare(`
+      INSERT INTO ai_configs (
+        model, system_instructions, temperature, max_tokens, rag_top_k, rag_similarity_threshold, max_conversation_history, escalation_threshold, ai_enabled, updated_at
+      ) VALUES (?, ?, 0.7, 1024, 5, 0.7, 20, 0.8, 1, ?)
+    `).run('gpt-4o-mini', telecomSystemPrompt, now);
 
-    // 11. AI Runtime Config
-    insertConfig.run(
-      'gpt-4o-mini',
-      systemPromptContent,
-      0.7,
-      1024,
-      5,
-      0.7,
-      20,
-      0.8,
-      1,
-      now
-    );
-
-    // 12. Audit Logs
-    insertAudit.run('log-1', 'usr-admin-1', 'ADMIN', 'SEED_DATABASE', 'SYSTEM', 'all', JSON.stringify({ note: 'Initial setup completed' }), now);
+    db.prepare(`
+      INSERT INTO ai_prompts (
+        prompt_id, version, content, status, created_by, created_at
+      ) VALUES (?, 1, ?, 'ACTIVE', 'admin@company.com', ?)
+    `).run('prompt-telecom-v1', telecomSystemPrompt, now);
   });
 
-  logger.info('Database seeding completed successfully.');
+  // 15. Generate Document Embeddings for RAG
+  const allDocs = db.prepare('SELECT document_id, content FROM knowledge_documents').all() as Array<{ document_id: string; content: string }>;
+  const insertEmbed = db.prepare(`
+    INSERT INTO document_embeddings (document_id, chunk_index, chunk_text, embedding, created_at)
+    VALUES (?, ?, ?, ?, ?)
+  `);
+
+  for (const doc of allDocs) {
+    const embedding = await generateEmbedding(doc.content);
+    insertEmbed.run(doc.document_id, 0, doc.content, JSON.stringify(embedding), now);
+  }
+
+  logger.info('Telecom database seeding complete! Demo subscribers, plans, usage, SIMs, and outages ready.');
 }
 
-// Allow running directly via tsx
 if (process.argv[1]?.endsWith('seed.ts')) {
-  seedDatabase()
-    .then(() => {
-      logger.info('Seed script finished.');
-      process.exit(0);
-    })
-    .catch((err) => {
-      logger.error('Seed script failed:', { error: String(err) });
-      process.exit(1);
-    });
+  seedDatabase(true).then(() => {
+    logger.info('Seed script finished.');
+    process.exit(0);
+  }).catch((err) => {
+    logger.error('Seed script failed:', err);
+    process.exit(1);
+  });
 }

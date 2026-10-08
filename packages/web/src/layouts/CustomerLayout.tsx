@@ -3,12 +3,16 @@ import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.js';
 import {
   Bot,
-  MessageSquare,
-  Package,
+  Wifi,
+  BarChart3,
+  CreditCard,
+  Receipt,
+  Smartphone,
   LifeBuoy,
+  MessageSquare,
   User,
   LogOut,
-  Sparkles,
+  Radio,
 } from 'lucide-react';
 
 export const CustomerLayout: React.FC = () => {
@@ -25,12 +29,12 @@ export const CustomerLayout: React.FC = () => {
       {/* Customer Sidebar */}
       <aside className="sidebar">
         <div className="sidebar-header">
-          <div className="brand-badge">
-            <Sparkles size={20} />
+          <div className="brand-badge" style={{ background: 'linear-gradient(135deg, #06b6d4, #6366f1)' }}>
+            <Radio size={20} />
           </div>
           <div>
-            <div className="brand-title">HelpCenter AI</div>
-            <div className="brand-sub">Customer Portal</div>
+            <div className="brand-title">TelecomOne</div>
+            <div className="brand-sub">Subscriber Portal</div>
           </div>
         </div>
 
@@ -40,23 +44,47 @@ export const CustomerLayout: React.FC = () => {
             className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
           >
             <Bot size={18} />
-            <span>AI Support Chat</span>
+            <span>AI Telecom Support</span>
           </NavLink>
 
           <NavLink
-            to="/conversations"
+            to="/plan"
             className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
           >
-            <MessageSquare size={18} />
-            <span>My Conversations</span>
+            <Wifi size={18} />
+            <span>My Plan</span>
           </NavLink>
 
           <NavLink
-            to="/orders"
+            to="/usage"
             className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
           >
-            <Package size={18} />
-            <span>My Orders</span>
+            <BarChart3 size={18} />
+            <span>My Usage</span>
+          </NavLink>
+
+          <NavLink
+            to="/recharge"
+            className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
+          >
+            <CreditCard size={18} />
+            <span>Recharge</span>
+          </NavLink>
+
+          <NavLink
+            to="/bills"
+            className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
+          >
+            <Receipt size={18} />
+            <span>Bills & Payments</span>
+          </NavLink>
+
+          <NavLink
+            to="/sim"
+            className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
+          >
+            <Smartphone size={18} />
+            <span>My SIM / eSIM</span>
           </NavLink>
 
           <NavLink
@@ -64,7 +92,15 @@ export const CustomerLayout: React.FC = () => {
             className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
           >
             <LifeBuoy size={18} />
-            <span>My Tickets</span>
+            <span>Support Tickets</span>
+          </NavLink>
+
+          <NavLink
+            to="/conversations"
+            className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
+          >
+            <MessageSquare size={18} />
+            <span>Conversations</span>
           </NavLink>
 
           <NavLink
@@ -72,20 +108,20 @@ export const CustomerLayout: React.FC = () => {
             className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
           >
             <User size={18} />
-            <span>My Profile</span>
+            <span>Profile</span>
           </NavLink>
         </nav>
 
         <div className="sidebar-footer">
           <div className="user-mini-card">
-            <div className="avatar-circle">
-              {user?.firstName ? user.firstName[0] : 'C'}
+            <div className="avatar-circle" style={{ background: 'rgba(6, 182, 212, 0.2)', borderColor: '#06b6d4' }}>
+              {user?.firstName ? user.firstName[0] : 'S'}
             </div>
             <div className="user-mini-meta">
               <div className="user-mini-name">
                 {user?.firstName ? `${user.firstName} ${user.lastName || ''}` : user?.email}
               </div>
-              <div className="user-mini-role">Customer Account</div>
+              <div className="user-mini-role" style={{ color: '#22d3ee' }}>5G Active Subscriber</div>
             </div>
           </div>
           <button
