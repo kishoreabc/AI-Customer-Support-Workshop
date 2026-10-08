@@ -18,6 +18,39 @@ export async function seedDatabase(force: boolean = false): Promise<void> {
     }
   }
 
+  if (force) {
+    db.exec(`
+      PRAGMA foreign_keys = OFF;
+      DELETE FROM audit_logs;
+      DELETE FROM document_embeddings;
+      DELETE FROM ai_configs;
+      DELETE FROM products;
+      DELETE FROM orders;
+      DELETE FROM order_items;
+      DELETE FROM ai_prompts;
+      DELETE FROM tool_executions;
+      DELETE FROM faqs;
+      DELETE FROM knowledge_documents;
+      DELETE FROM support_tickets;
+      DELETE FROM messages;
+      DELETE FROM conversations;
+      DELETE FROM network_issues;
+      DELETE FROM network_outages;
+      DELETE FROM sim_cards;
+      DELETE FROM payments;
+      DELETE FROM bills;
+      DELETE FROM recharges;
+      DELETE FROM telecom_usage;
+      DELETE FROM subscriptions;
+      DELETE FROM telecom_plans;
+      DELETE FROM support_agents;
+      DELETE FROM admin_users;
+      DELETE FROM customer_profiles;
+      DELETE FROM users;
+      PRAGMA foreign_keys = ON;
+    `);
+  }
+
   logger.info('Seeding fresh telecom demo data...');
 
   const passwordHash = await bcrypt.hash('password123', 10);

@@ -2,12 +2,14 @@ node_modules/
 dist/
 .env
 *.sqlite*
-data/
-**/data/*.sqlite*
+packages/api/data/
+app/data/*.sqlite*
 .DS_Store
 *.log
 .venv/
 __pycache__/
+*.pyc
+.pytest_cache/
 requirements.md
 tasks.md
 design.md

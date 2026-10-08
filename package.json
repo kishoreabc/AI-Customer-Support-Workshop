@@ -9,11 +9,14 @@
   ],
   "scripts": {
     "dev": "concurrently \"npm run dev:api\" \"npm run dev:web\"",
+    "dev:fastapi": "./.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 3000 --reload",
     "dev:api": "npm run dev -w packages/api",
     "dev:web": "npm run dev -w packages/web",
     "build": "npm run build -w packages/api && npm run build -w packages/web",
-    "test": "npm run test -w packages/api",
-    "seed": "npm run seed -w packages/api"
+    "test": "npm run test -w packages/api && ./.venv/bin/pytest tests/",
+    "test:fastapi": "./.venv/bin/pytest tests/",
+    "seed": "npm run seed -w packages/api && ./.venv/bin/python -c 'from app.data.database import init_db; from app.data.seed import seed_database; init_db(); seed_database(force=True)'",
+    "seed:fastapi": "./.venv/bin/python -c 'from app.data.database import init_db; from app.data.seed import seed_database; init_db(); seed_database(force=True)'"
   },
   "devDependencies": {
     "concurrently": "^9.1.2",

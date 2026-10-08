@@ -9,7 +9,7 @@ describe('AI Telecom Customer Support Platform Suite', () => {
   beforeAll(async () => {
     const db = getDatabase();
     initializeSchema(db);
-    await seedDatabase(false);
+    await seedDatabase(true);
   });
 
   describe('Telecom AI Tools & Security Requirements', () => {
