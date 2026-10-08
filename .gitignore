@@ -8,3 +8,7 @@ data/
 *.log
 .venv/
 __pycache__/
+requirements.md
+tasks.md
+design.md
+prompt.md
